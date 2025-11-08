@@ -1,0 +1,63 @@
+/* src/index.css */
+
+body {
+  margin: 0;
+  /* Usar la fuente Roboto para un look moderno */
+  font-family: 'Roboto', sans-serif !important; 
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f8f9fa; /* Color de fondo muy claro */
+  color: #343a40; /* Color de texto oscuro */
+}
+
+/* Estilo para los títulos y la aplicación general */
+.App-header h1 {
+  font-weight: 700; /* Negrita para elegancia */
+  color: #004d40; /* Un color institucional (ej: verde oscuro) */
+  margin-bottom: 20px;
+}
+
+/* Estilo de la navegación */
+.App-header nav {
+  padding: 10px 0;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #e9ecef; /* Separador sutil */
+}
+
+.App-header a {
+  margin: 0 15px;
+  text-decoration: none;
+  color: #007bff; /* Azul primario de Bootstrap */
+  font-weight: 500;
+}
+
+/* Contenedor principal para centrar el contenido */
+.App-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+/* Formulario genérico y elementos */
+form input, form select, form button, form textarea {
+  margin-bottom: 15px;
+  display: block;
+  width: 100%;
+  padding: 10px;
+  border-radius: 5px;
+  border: 1px solid #ced4da;
+}
+
+/* Botones de acción */
+button {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  cursor: pointer;
+  padding: 10px 15px;
+  border-radius: 5px;
+}
+
+button:hover {
+  background-color: #0056b3;
+}
