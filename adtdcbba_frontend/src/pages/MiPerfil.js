@@ -42,9 +42,8 @@ const MiPerfil = () => {
     
     return (
         <div className="container-fluid mt-4">
-            <h2 className="text-primary mb-4">Mi Perfil: {val(deportista.first_name)} {val(deportista.last_name)}</h2>
+            <h2 className="text-primary mb-4">Mi Perfil: {val(deportista.first_name)} {val(deportista.apellido_paterno)}</h2>
             
-            {/* Tarjeta de Información General */}
             <div className="card shadow-sm mb-4">
                 <div className="card-header bg-info text-white">
                     Información Básica

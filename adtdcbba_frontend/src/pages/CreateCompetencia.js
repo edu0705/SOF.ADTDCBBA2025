@@ -29,7 +29,8 @@ const CreateCompetencia = () => {
     fetchData();
   }, []);
 
-  // --- Lógica de Mapeo para React-Select (Ahora SÍ se usan abajo) ---
+  // --- Lógica de Mapeo para React-Select ---
+  // (Estas variables AHORA SÍ se usan en el return)
   const poligonoOptions = poligonos.map(p => ({ value: p.id, label: p.name }));
   const juezOptions = jueces.map(j => ({ value: j.id, label: j.full_name }));
   
@@ -40,8 +41,7 @@ const CreateCompetencia = () => {
   }));
   // ----------------------------------------
 
-
-  // ¡FUNCIÓN CORREGIDA (para leer datos paginados)!
+  // Corregido para manejar la paginación de la API
   const fetchData = async () => {
     try {
       const [poligonosRes, juecesRes, modalidadesRes, competenciasRes] = await Promise.all([
@@ -51,12 +51,10 @@ const CreateCompetencia = () => {
         competenciaService.getCompetencias()
       ]);
 
-      // Función auxiliar para extraer datos paginados
       const extractData = (response) => {
-          if (response.data && response.data.results && Array.isArray(response.data.results)) {
-              return response.data.results;
-          }
-          return Array.isArray(response.data) ? response.data : [];
+          return (response.data && response.data.results && Array.isArray(response.data.results))
+                 ? response.data.results 
+                 : Array.isArray(response.data) ? response.data : [];
       };
 
       setPoligonos(extractData(poligonosRes));
@@ -68,8 +66,6 @@ const CreateCompetencia = () => {
       setError("No se pudieron cargar los datos necesarios. Asegúrese de tener el rol 'Presidente'.");
     }
   };
-  // --- FIN DE LA CORRECCIÓN ---
-
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -130,6 +126,7 @@ const CreateCompetencia = () => {
       setArchivoConvocatoria(null);
 
     } catch (err) {
+      // (Manejo de errores mejorado)
       console.error("Error al crear competencia:", err.response ? err.response.data : err.message);
       if (err.response && err.response.data) {
           const errorData = err.response.data;
@@ -154,6 +151,7 @@ const CreateCompetencia = () => {
     return poligono ? poligono.label : 'N/A';
   };
 
+  // --- ¡ESTA ES LA PARTE QUE FALTABA! ---
   return (
     <div className="container mt-4">
         <h2 className="mb-4 text-primary">Crear Nueva Competencia</h2>
@@ -218,7 +216,6 @@ const CreateCompetencia = () => {
                     <div className="form-text">Al seleccionar la modalidad, se incluyen automáticamente todas sus categorías.</div>
                 </div>
                 
-                {/* ¡ESTA ES LA PARTE QUE FALTABA! */}
                 <div className="col-12">
                     <label className="form-label fw-bold">Jueces</label>
                     <Select 
@@ -248,7 +245,6 @@ const CreateCompetencia = () => {
                     <input type="file" className="form-control" name="archivo_convocatoria" onChange={handleFileChange} />
                 </div>
 
-                {/* Este error se muestra si el handleSubmit falla */}
                 {error && <div className="col-12"><div className="alert alert-danger">{error}</div></div>}
                 
                 <div className="col-12 mt-4">
@@ -263,7 +259,6 @@ const CreateCompetencia = () => {
 
         <hr className="my-5"/>
         
-        {/* LISTADO DE COMPETENCIAS */}
         <h3>Competencias Existentes</h3>
         <table className="table table-striped table-hover">
             <thead className="table-dark">
