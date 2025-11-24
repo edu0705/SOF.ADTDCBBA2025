@@ -1,21 +1,29 @@
-cat > .gitignore <<EOL
+# .gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
 # Django
 *.log
-*.pot
-*.pyc
-__pycache__/
+local_settings.py
 db.sqlite3
+db.sqlite3-journal
 media/
 staticfiles/
+
+# Entornos Virtuales (CRÍTICO: Esto evitará que subas venv de nuevo)
+venv/
 venv_django/
+env/
 .env
+.venv
 
-# Node / Frontend
-node_modules/
-adtdcbba_frontend/dist/
-adtdcbba_frontend/node_modules/
+# IDEs
+.vscode/
+.idea/
+
+# OS
 .DS_Store
-
-# Docker
-postgres_data/
-EOL
+Thumbs.db
