@@ -2,10 +2,14 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
+
+# Importamos nuestras vistas de autenticación personalizadas (Cookies)
+from users.views import (
+    CustomTokenObtainPairView,
+    CustomTokenRefreshView,
+    LogoutView
 )
+
 # Importaciones para la documentación (Swagger)
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
@@ -18,11 +22,12 @@ urlpatterns = [
     path('api/deportistas/', include('deportistas.urls')),
     path('api/competencias/', include('competencias.urls')),
     
-    # Rutas de autenticación JWT
-    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    # --- RUTAS DE AUTENTICACIÓN JWT (MODIFICADAS PARA COOKIES) ---
+    path('api/token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'), # Login
+    path('api/token/refresh/', CustomTokenRefreshView.as_view(), name='token_refresh'), # Refresh silencioso
+    path('api/token/logout/', LogoutView.as_view(), name='token_logout'), # Logout
 
-    # --- RUTAS DE DOCUMENTACIÓN (NUEVO) ---
+    # --- RUTAS DE DOCUMENTACIÓN ---
     # Descarga el esquema YAML
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     # Interfaz visual (Swagger UI)

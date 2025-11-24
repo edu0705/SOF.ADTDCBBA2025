@@ -104,8 +104,6 @@ STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Usamos Whitenoise para servir estáticos. 
-# En local a veces da problemas si no se ejecuta collectstatic, 
-# pero esta configuración es la estándar para producción.
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = '/media/'
@@ -117,11 +115,14 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 # --- 3. CONFIGURACIÓN CORS (React) ---
+# ¡IMPORTANTE!: Permitir credenciales para que las cookies viajen
+CORS_ALLOW_CREDENTIALS = True 
+
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
+    "http://localhost:3000",      # React Legacy
     "http://127.0.0.1:3000",
-    # Aquí agregarás la URL de Vercel cuando despliegues el frontend
-    # Ej: "https://mi-app-tiro.vercel.app"
+    "http://localhost:5173",      # Vite (Frontend Moderno)
+    "http://127.0.0.1:5173",
 ]
 
 # Si defines una URL de producción en el .env, la agrega automáticamente
@@ -130,12 +131,26 @@ if config('CORS_ALLOWED_ORIGIN_PROD', default=None):
 
 CORS_ALLOW_ALL_ORIGINS = False # Seguridad: Solo permitir orígenes listados
 
+# --- SEGURIDAD DE COOKIES (NUEVO - JWT EN HTTPONLY) ---
+AUTH_COOKIE = 'access'
+AUTH_COOKIE_REFRESH = 'refresh'
+
+# En Producción (False en local si no tienes HTTPS, True en Producción con SSL)
+AUTH_COOKIE_SECURE = config('AUTH_COOKIE_SECURE', default=not DEBUG, cast=bool)
+AUTH_COOKIE_HTTP_ONLY = True     # JavaScript no puede leerlas (Protección XSS)
+AUTH_COOKIE_PATH = '/'
+AUTH_COOKIE_SAMESITE = 'Lax'     # Lax es seguro para navegación estándar
+
 # --- REST FRAMEWORK & SWAGGER ---
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        # Usamos nuestra clase personalizada para leer la cookie
+        'users.authentication.CustomJWTAuthentication', 
     ),
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
 }
 
 SPECTACULAR_SETTINGS = {
@@ -153,8 +168,6 @@ SIMPLE_JWT = {
 }
 
 # --- 4. WEBSOCKETS HÍBRIDOS (Channels) ---
-# Si existe REDIS_URL (Nube/Render), usa Redis para escalar.
-# Si NO existe (Tu PC), usa la Memoria RAM (InMemory) para desarrollo fácil.
 if config('REDIS_URL', default=None):
     CHANNEL_LAYERS = {
         'default': {

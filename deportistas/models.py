@@ -1,127 +1,120 @@
+# deportistas/models.py
 from django.db import models
 from django.contrib.auth.models import User
 from clubs.models import Club
-import uuid
-from datetime import date
 
 class Deportista(models.Model):
     STATUS_CHOICES = (
-        ('Pendiente de Aprobación', 'Pendiente de Aprobación'),
-        ('Pendiente de Documentación', 'Pendiente de Documentación'),
-        ('Activo', 'Activo'),
-        ('Suspendido', 'Suspendido'),
-        ('Rechazado', 'Rechazado'),
+        ('PENDIENTE', 'Pendiente de Validación'), # Creado por Club, espera aprobación Admin
+        ('ACTIVO', 'Activo'),                     # Habilitado para competir
+        ('SUSPENDIDO', 'Suspendido'),             # Sancionado (no puede competir)
+        ('INACTIVO', 'Inactivo/Baja'),            # Dejó el club o el deporte
     )
 
-    user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
-    club = models.ForeignKey(Club, on_delete=models.SET_NULL, null=True, blank=True)
+    user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='deportista')
     
+    # Datos Personales
     first_name = models.CharField(max_length=100)
     apellido_paterno = models.CharField(max_length=100)
-    apellido_materno = models.CharField(max_length=100, null=True, blank=True)
+    apellido_materno = models.CharField(max_length=100, blank=True, null=True)
+    fecha_nacimiento = models.DateField()
+    ci = models.CharField(max_length=20, unique=True, verbose_name="Cédula de Identidad")
     
-    ci = models.CharField(max_length=20, unique=True)
-    birth_date = models.DateField()
-    departamento = models.CharField(max_length=50)
-    genero = models.CharField(max_length=10)
-    telefono = models.CharField(max_length=20, blank=True, null=True)
+    # Club al que representa ACTUALMENTE
+    # Si es Null, significa que está "Sin Club" y no puede competir hasta asignarse uno.
+    club = models.ForeignKey(Club, on_delete=models.SET_NULL, null=True, blank=True, related_name='deportistas')
     
-    foto_path = models.ImageField(upload_to='fotos_deportistas/', blank=True, null=True)
-    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='Pendiente de Aprobación')
-    notas_admin = models.TextField(null=True, blank=True) 
-    es_historico = models.BooleanField(default=False, help_text="Marcado si es un registro de gestiones pasadas")
+    # Gestión Deportiva
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDIENTE')
+    codigo_unico = models.CharField(max_length=50, unique=True, blank=True, null=True)
+    
+    # Invitados y Origen
+    es_invitado = models.BooleanField(default=False)
+    departamento_origen = models.CharField(max_length=50, blank=True, null=True) 
+    
+    # Control de Suspensiones (NUEVO)
+    motivo_suspension = models.TextField(blank=True, null=True, help_text="Razón de la sanción si está suspendido")
+    fecha_suspension = models.DateField(blank=True, null=True)
+    suspension_indefinida = models.BooleanField(default=False)
+    fin_suspension = models.DateField(blank=True, null=True, help_text="Dejar vacío si es indefinida")
+    
+    # Datos Históricos y Sistema
+    es_historico = models.BooleanField(default=False, help_text="Deportista de gestiones pasadas importado")
+    force_password_change = models.BooleanField(default=False)
+    
+    # Auditoría
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    # Documentos (Relación inversa con DocumentoDeportista - se define en otro modelo o con related_name)
+    # archivo_responsabilidad: Se puede manejar como un DocumentoDeportista o campo directo si prefieres simplificar
+    archivo_responsabilidad = models.FileField(upload_to='responsabilidades/', blank=True, null=True)
 
-    # --- INVITADOS ---
-    es_invitado = models.BooleanField(default=False, help_text="Si es True, no suma al ranking local.")
-    departamento_origen = models.CharField(max_length=50, blank=True, null=True, help_text="Ej: La Paz (Solo invitados)")
+    def __str__(self):
+        club_name = self.club.name if self.club else "Sin Club"
+        return f"{self.first_name} {self.apellido_paterno} ({club_name})"
 
-    # --- IDENTIFICACIÓN ÚNICA (CARNET/REAFUC) ---
-    codigo_unico = models.CharField(max_length=30, unique=True, blank=True, null=True)
-
-    # --- MENORES DE EDAD ---
-    tutor_nombre = models.CharField(max_length=200, blank=True, null=True)
-    tutor_telefono = models.CharField(max_length=50, blank=True, null=True)
-    archivo_responsabilidad = models.FileField(upload_to='documentos_tutor/', blank=True, null=True)
-# --- SEGURIDAD ---
-    force_password_change = models.BooleanField(default=True, help_text="Obliga a cambiar la contraseña en el primer login")
     def get_edad(self):
-        if not self.birth_date: return 0
+        from datetime import date
         today = date.today()
-        return today.year - self.birth_date.year - ((today.month, today.day) < (self.birth_date.month, self.birth_date.day))
+        return today.year - self.fecha_nacimiento.year - ((today.month, today.day) < (self.fecha_nacimiento.month, self.fecha_nacimiento.day))
 
-    def save(self, *args, **kwargs):
-        # Generar código único al activar si no existe
-        if self.status == 'Activo' and not self.codigo_unico:
-            year = date.today().year
-            uid = str(uuid.uuid4())[:4].upper()
-            # Formato: ADT-2025-1234-X9Y8
-            self.codigo_unico = f"ADT-{year}-{self.ci[:4]}-{uid}"
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        materno = self.apellido_materno or ''
-        return f"{self.first_name} {self.apellido_paterno} {materno}".strip()
-
-class Documento(models.Model):
-    DOCUMENT_TYPES = (
-        ('Licencia B', 'Licencia B (PDF)'),
-        ('Carnet de Identidad', 'Carnet de Identidad (PDF)'),
-        ('Licencia de Competencia', 'Licencia de Competencia'),
-        ('Certificado Médico', 'Certificado Médico'),
-    )
-    deportista = models.ForeignKey('Deportista', on_delete=models.CASCADE, related_name='documentos')
-    document_type = models.CharField(max_length=50, choices=DOCUMENT_TYPES)
-    file_path = models.FileField(upload_to='documentos_deportistas/', null=True, blank=True)
-    expiration_date = models.DateField(null=True, blank=True) 
-    
-    def __str__(self):
-        return f"{self.document_type} - {self.deportista.first_name}"
 
 class Arma(models.Model):
-    deportista = models.ForeignKey('Deportista', on_delete=models.CASCADE, related_name='armas')
-    tipo = models.CharField(max_length=100)
-    calibre = models.CharField(max_length=50)
+    TIPO_CHOICES = (
+        ('Corta', 'Arma Corta'),
+        ('Larga', 'Arma Larga'),
+        ('Escopeta', 'Escopeta'),
+    )
+    
+    deportista = models.ForeignKey(Deportista, on_delete=models.CASCADE, related_name='armas')
+    tipo = models.CharField(max_length=50, choices=TIPO_CHOICES)
     marca = models.CharField(max_length=100)
     modelo = models.CharField(max_length=100)
-    numero_matricula = models.CharField(max_length=100)
-    fecha_inspeccion = models.DateField(null=True, blank=True)
-    file_path = models.FileField(upload_to='matriculas_armas/', null=True, blank=True)
+    calibre = models.CharField(max_length=50)
+    serie = models.CharField(max_length=100, unique=True)
+    matricula = models.CharField(max_length=100, blank=True, null=True)
     
-    # --- AIRE COMPRIMIDO ---
-    es_aire_comprimido = models.BooleanField(default=False, help_text="Si es True, no exige matrícula ni inspección.")
+    # Control 2026
+    es_aire_comprimido = models.BooleanField(default=False)
+    fecha_inspeccion = models.DateField(blank=True, null=True, help_text="Válida por la gestión actual")
+    observaciones = models.TextField(blank=True, null=True)
 
     def __str__(self):
         return f"{self.marca} {self.modelo} ({self.calibre})"
 
+
+class DocumentoDeportista(models.Model):
+    DOC_TYPES = (
+        ('CI', 'Cédula de Identidad'),
+        ('Licencia B', 'Licencia Cat. B'),
+        ('Responsabilidad', 'Carta de Responsabilidad'),
+        ('Otro', 'Otro Documento'),
+    )
+    deportista = models.ForeignKey(Deportista, on_delete=models.CASCADE, related_name='documentos')
+    document_type = models.CharField(max_length=50, choices=DOC_TYPES)
+    file = models.FileField(upload_to='docs_deportistas/')
+    expiration_date = models.DateField(blank=True, null=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.document_type} - {self.deportista}"
+
+
 class PrestamoArma(models.Model):
-    arma = models.ForeignKey(Arma, on_delete=models.CASCADE, related_name='prestamos')
-    deportista_prestamista = models.ForeignKey(Deportista, on_delete=models.CASCADE, related_name='prestamos_realizados', help_text="Dueño del arma")
-    deportista_receptor = models.ForeignKey(Deportista, on_delete=models.CASCADE, related_name='prestamos_recibidos', help_text="Quien se presta")
-    
-    # Referencia string para evitar ciclo
-    competencia = models.ForeignKey('competencias.Competencia', on_delete=models.CASCADE)
-    
-    fecha = models.DateField(auto_now_add=True)
-    detalles_arma_snapshot = models.TextField(blank=True, null=True) 
-    
+    """
+    Registro legal de préstamos de armas para una competencia específica.
+    Permite validar que un deportista use un arma que no es suya.
+    """
+    arma = models.ForeignKey(Arma, on_delete=models.CASCADE)
+    deportista_propietario = models.ForeignKey(Deportista, on_delete=models.CASCADE, related_name='prestamos_otorgados')
+    deportista_receptor = models.ForeignKey(Deportista, on_delete=models.CASCADE, related_name='prestamos_recibidos')
+    competencia = models.ForeignKey('competencias.Competencia', on_delete=models.CASCADE) # String reference evita circular import
+    fecha_prestamo = models.DateField(auto_now_add=True)
+    observaciones = models.TextField(blank=True, null=True)
+
     class Meta:
-        ordering = ['-fecha']
-
-    def save(self, *args, **kwargs):
-        self.detalles_arma_snapshot = f"{self.arma.marca} {self.arma.modelo} ({self.arma.calibre}) - Mat: {self.arma.numero_matricula}"
-        self.deportista_prestamista = self.arma.deportista
-        super().save(*args, **kwargs)
+        unique_together = ('arma', 'competencia', 'deportista_receptor')
 
     def __str__(self):
-        return f"Préstamo: {self.arma} a {self.deportista_receptor} ({self.fecha})"
-
-class SolicitudActualizacion(models.Model):
-    deportista = models.ForeignKey(Deportista, on_delete=models.CASCADE)
-    tipo_dato = models.CharField(max_length=100) # Ej: "Renovación Licencia"
-    descripcion = models.TextField()
-    archivo_comprobante = models.FileField(upload_to='solicitudes_cambio/')
-    estado = models.CharField(max_length=20, default='PENDIENTE') # PENDIENTE, APROBADA, RECHAZADA
-    fecha_solicitud = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"Solicitud {self.deportista}: {self.tipo_dato}"
+        return f"Préstamo: {self.arma} a {self.deportista_receptor} para {self.competencia}"

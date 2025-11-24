@@ -1,13 +1,120 @@
-from datetime import date, timedelta
+# users/views.py
+from django.conf import settings
+from django.middleware import csrf
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from competencias.models import Competencia
-from deportistas.models import Deportista, Arma
+from rest_framework import status
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+
+# Importamos nuestro nuevo Servicio y Serializadores
+from .services import NotificationService
 from .serializers import UserInfoSerializer
+
+# --- 1. AUTENTICACIÓN SEGURA (Cookies HttpOnly) ---
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    def post(self, request, *args, **kwargs):
+        try:
+            response = super().post(request, *args, **kwargs)
+        except Exception:
+            return Response({"detail": "Credenciales inválidas"}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        if response.status_code == 200:
+            access_token = response.data.get('access')
+            refresh_token = response.data.get('refresh')
+
+            # Seteamos cookies seguras
+            self._set_auth_cookies(response, access_token, refresh_token)
+
+            # Limpiamos el cuerpo de la respuesta
+            del response.data['access']
+            del response.data['refresh']
+            
+            csrf.get_token(request) 
+            response.data['message'] = 'Login exitoso via Cookies'
+
+        return response
+
+    def _set_auth_cookies(self, response, access, refresh):
+        cookie_params = {
+            'secure': settings.AUTH_COOKIE_SECURE,
+            'httponly': settings.AUTH_COOKIE_HTTP_ONLY,
+            'samesite': settings.AUTH_COOKIE_SAMESITE,
+        }
+        
+        response.set_cookie(
+            key=settings.AUTH_COOKIE, 
+            value=access, 
+            expires=settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'],
+            **cookie_params
+        )
+        response.set_cookie(
+            key=settings.AUTH_COOKIE_REFRESH, 
+            value=refresh, 
+            expires=settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'], 
+            **cookie_params
+        )
+
+class CustomTokenRefreshView(TokenRefreshView):
+    def post(self, request, *args, **kwargs):
+        refresh_token = request.COOKIES.get(settings.AUTH_COOKIE_REFRESH)
+        
+        if not refresh_token:
+            return Response({"detail": "No refresh token"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        # Inyectamos el token manualmente para evitar errores de body vacío
+        serializer = self.get_serializer(data={"refresh": refresh_token})
+        
+        try:
+            serializer.is_valid(raise_exception=True)
+        except TokenError as e:
+            raise InvalidToken(e.args[0])
+
+        response = Response(serializer.validated_data, status=status.HTTP_200_OK)
+
+        # Actualizamos cookies
+        access_token = response.data.get('access')
+        cookie_params = {
+            'secure': settings.AUTH_COOKIE_SECURE,
+            'httponly': settings.AUTH_COOKIE_HTTP_ONLY,
+            'samesite': settings.AUTH_COOKIE_SAMESITE,
+        }
+
+        response.set_cookie(
+            key=settings.AUTH_COOKIE, 
+            value=access_token, 
+            expires=settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'],
+            **cookie_params
+        )
+        
+        if 'refresh' in response.data:
+            response.set_cookie(
+                key=settings.AUTH_COOKIE_REFRESH, 
+                value=response.data['refresh'], 
+                expires=settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'], 
+                **cookie_params
+            )
+            del response.data['refresh']
+            
+        if 'access' in response.data: del response.data['access']
+
+        return response
+
+class LogoutView(APIView):
+    def post(self, request):
+        response = Response({"message": "Logout exitoso"})
+        response.delete_cookie(settings.AUTH_COOKIE)
+        response.delete_cookie(settings.AUTH_COOKIE_REFRESH)
+        return response
+
+
+# --- 2. VISTAS DE NEGOCIO (Refactorizadas) ---
 
 class UserInfoAPIView(APIView):
     permission_classes = [IsAuthenticated]
+    
     def get(self, request):
         serializer = UserInfoSerializer(request.user)
         return Response(serializer.data)
@@ -16,41 +123,6 @@ class UserNotificationsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        user = request.user
-        notifications = []
-        today = date.today()
-        warning_date = today + timedelta(days=90) # 3 MESES
-
-        # COMPETENCIAS
-        proximas = Competencia.objects.filter(status='Próxima', start_date__gte=today).order_by('start_date')
-        for comp in proximas:
-            notifications.append({'id': f'new-{comp.id}', 'type': 'info', 'title': 'Nueva Competencia', 'message': f"{comp.name} el {comp.start_date}.", 'link': '/admin/competencias'})
-        
-        recent_final = Competencia.objects.filter(status='Finalizada', end_date__gte=today-timedelta(days=3))
-        for comp in recent_final:
-             notifications.append({'id': f'res-{comp.id}', 'type': 'success', 'title': 'Resultados Publicados', 'message': f"Ya puedes ver los resultados de {comp.name}.", 'link': f'/admin/resultados/{comp.id}'})
-
-        # ALERTAS PERSONALES
-        deps = []
-        if hasattr(user, 'club'): deps = Deportista.objects.filter(club=user.club)
-        elif hasattr(user, 'deportista'): deps = [user.deportista]
-
-        for dep in deps:
-            # A. Licencia B
-            licencia = dep.documentos.filter(document_type='Licencia B').order_by('-expiration_date').first()
-            if licencia and licencia.expiration_date:
-                if licencia.expiration_date < today:
-                    notifications.append({'id': f'lic-exp-{dep.id}', 'type': 'danger', 'title': 'Licencia Vencida', 'message': f"{dep.first_name}: Licencia caducada. Solo Aire permitido.", 'link': '/mi-perfil'})
-                elif licencia.expiration_date <= warning_date:
-                    notifications.append({'id': f'lic-warn-{dep.id}', 'type': 'warning', 'title': 'Renovar Licencia', 'message': f"{dep.first_name}: Vence el {licencia.expiration_date}.", 'link': '/mi-perfil'})
-
-            # B. Inspección Armas (Solo Fuego)
-            armas = Arma.objects.filter(deportista=dep, es_aire_comprimido=False)
-            for arma in armas:
-                if arma.fecha_inspeccion:
-                    if arma.fecha_inspeccion < today:
-                        notifications.append({'id': f'arma-exp-{arma.id}', 'type': 'danger', 'title': 'Inspección Vencida', 'message': f"{arma.marca}: Inspección requerida.", 'link': '/mi-perfil'})
-                    elif arma.fecha_inspeccion <= warning_date:
-                        notifications.append({'id': f'arma-warn-{arma.id}', 'type': 'warning', 'title': 'Próxima Inspección', 'message': f"{arma.marca}: Vence el {arma.fecha_inspeccion}.", 'link': '/mi-perfil'})
-
+        # ¡MIRA QUÉ LIMPIO! Toda la lógica compleja se fue al servicio.
+        notifications = NotificationService.get_user_notifications(request.user)
         return Response(notifications)

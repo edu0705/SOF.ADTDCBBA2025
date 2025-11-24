@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  # 1. Base de Datos (PostgreSQL)
+  db:
+    image: postgres:15-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_DB=adtdcbba_db
+      - POSTGRES_USER=adtd_user
+      - POSTGRES_PASSWORD=adtd_password_seguro
+    restart: always
+
+  # 2. Redis (Para WebSockets)
+  redis:
+    image: redis:7-alpine
+    restart: always
+
+  # 3. Backend (Django) - CORREGIDO
+  backend:
+    build: .  # <--- CAMBIO: Construye desde el directorio actual (donde está tu manage.py)
+    command: daphne -b 0.0.0.0 -p 8000 adtdcbba_backend.asgi:application
+    volumes:
+      - .:/app # <--- CAMBIO: Monta el directorio actual en el contenedor
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=0
+      - SECRET_KEY=tu-clave-secreta-muy-segura-cambiala-en-prod
+      - ALLOWED_HOSTS=localhost,127.0.0.1,backend
+      - DATABASE=postgres
+      - SQL_ENGINE=django.db.backends.postgresql
+      - SQL_DATABASE=adtdcbba_db
+      - SQL_USER=adtd_user
+      - SQL_PASSWORD=adtd_password_seguro
+      - SQL_HOST=db
+      - SQL_PORT=5432
+      - DATABASE_URL=postgres://adtd_user:adtd_password_seguro@db:5432/adtdcbba_db
+      - REDIS_URL=redis://redis:6379/0
+      - CORS_ALLOWED_ORIGIN_PROD=http://localhost
+    depends_on:
+      - db
+      - redis
+    restart: always
+
+  # 4. Frontend (Nginx + React)
+  frontend:
+    build: ./adtdcbba_frontend # <--- ESTO ESTÁ BIEN (apunta a la carpeta que veo en tu ls)
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    volumes:
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    restart: always
+
+volumes:
+  postgres_data:
+  static_volume:
+  media_volume:

@@ -1,49 +1,34 @@
 # deportistas/admin.py
-
 from django.contrib import admin
-from .models import Deportista, Documento, Arma
+from .models import Deportista, DocumentoDeportista, Arma, PrestamoArma
 
-# --- Inlines para la Edición Anidada ---
-
-class DocumentoInline(admin.StackedInline):
-    model = Documento
+class DocumentoInline(admin.TabularInline):
+    model = DocumentoDeportista
     extra = 0 
-    readonly_fields = ('file_path',) 
-    fields = ('document_type', 'expiration_date', 'file_path') 
-    can_delete = False
 
-class ArmaInline(admin.StackedInline):
+class ArmaInline(admin.TabularInline):
     model = Arma
     extra = 0
-    readonly_fields = ('file_path',)
-    fields = ('tipo', 'calibre', 'marca', 'modelo', 'numero_matricula', 'fecha_inspeccion', 'file_path')
-    can_delete = False
 
-# --- Modelo Principal para Deportista ---
+@admin.register(Deportista)
 class DeportistaAdmin(admin.ModelAdmin):
-    # Usa los inlines para mostrar Documentos y Armas en la página de edición
-    inlines = [DocumentoInline, ArmaInline] 
+    list_display = ('first_name', 'apellido_paterno', 'club', 'status', 'ci')
+    search_fields = ('first_name', 'apellido_paterno', 'ci')
     
-    # --- CAMPOS MODIFICADOS ---
-    # Campos visibles en el listado de la tabla principal
-    list_display = ('first_name', 'apellido_paterno', 'apellido_materno', 'club', 'status')
-    list_filter = ('status', 'club') 
-    # Añadimos los nuevos apellidos al buscador
-    search_fields = ('first_name', 'apellido_paterno', 'apellido_materno', 'ci')
+    # CORRECCIÓN: Eliminamos el campo inexistente y ponemos filtros válidos
+    list_filter = ('status', 'club', 'es_invitado') 
+    
+    inlines = [DocumentoInline, ArmaInline]
+    
+    readonly_fields = ('created_at', 'updated_at')
 
-    # Organización de campos en la forma de edición
-    fieldsets = (
-        ('Información Personal', {
-            # Reemplazamos 'last_name' por los nuevos campos
-            'fields': (('first_name', 'apellido_paterno', 'apellido_materno'), 'ci', ('birth_date', 'genero'), ('departamento', 'telefono')),
-        }),
-        ('Control y Afiliación', {
-            'fields': ('user', 'club', 'status', 'notas_admin'), 
-        }),
-    )
-    # --- FIN DE LA MODIFICACIÓN ---
+@admin.register(Arma)
+class ArmaAdmin(admin.ModelAdmin):
+    list_display = ('marca', 'modelo', 'calibre', 'tipo', 'deportista', 'fecha_inspeccion')
+    search_fields = ('serie', 'matricula', 'deportista__first_name', 'deportista__apellido_paterno')
+    list_filter = ('tipo', 'es_aire_comprimido')
 
-# --- Registra los modelos con sus clases Admin ---
-admin.site.register(Deportista, DeportistaAdmin)
-admin.site.register(Documento)
-admin.site.register(Arma)
+@admin.register(PrestamoArma)
+class PrestamoArmaAdmin(admin.ModelAdmin):
+    list_display = ('arma', 'deportista_propietario', 'deportista_receptor', 'competencia', 'fecha_prestamo')
+    search_fields = ('arma__serie', 'deportista_receptor__apellido_paterno')

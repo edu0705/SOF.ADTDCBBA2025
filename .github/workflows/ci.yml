@@ -1,0 +1,65 @@
+name: Django CI/CD
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  test-backend:
+    runs-on: ubuntu-latest
+    services:
+      # GitHub levanta una base de datos temporal para los tests
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: adtdcbba_db
+          POSTGRES_USER: adtd_user
+          POSTGRES_PASSWORD: password_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      # Y un Redis temporal para los WebSockets
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install daphne gunicorn psycopg2-binary # Aseguramos librerías de prod
+
+    - name: Run Tests
+      env:
+        # Configuración para el entorno de Test de GitHub
+        DEBUG: 1
+        SECRET_KEY: 'django-insecure-test-key-github-actions'
+        DATABASE: postgres
+        SQL_ENGINE: django.db.backends.postgresql
+        SQL_DATABASE: adtdcbba_db
+        SQL_USER: adtd_user
+        SQL_PASSWORD: password_test
+        SQL_HOST: localhost
+        SQL_PORT: 5432
+        REDIS_URL: redis://localhost:6379/0
+      run: |
+        # Corremos las validaciones de Django
+        python manage.py check
+        # Ejecutamos los tests (igual que hiciste en local)
+        python manage.py test deportistas clubs users competencias

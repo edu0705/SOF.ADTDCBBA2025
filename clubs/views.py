@@ -1,20 +1,10 @@
-# clubs/views.py
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
-from .models import Club # <--- Asegúrate de que esta importación exista
+from .models import Club
 from .serializers import ClubSerializer
 
 class ClubViewSet(viewsets.ModelViewSet):
-    # Solución: Definir el queryset que el router necesita
-    queryset = Club.objects.all() 
-
+    queryset = Club.objects.all()
     serializer_class = ClubSerializer
+    # Protegemos la vista para que solo usuarios logueados puedan ver/editar
     permission_classes = [IsAuthenticated]
-
-    # Sobreescribimos get_queryset para el filtro (como ya lo hicimos)
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_superuser:
-            return Club.objects.all()
-        # Devuelve solo el club asociado al usuario logueado
-        return Club.objects.filter(user=user)
