@@ -5,7 +5,7 @@ def calculate_round_score(modalidad_nombre, score_data):
     Calcula el puntaje de una ronda basado en el nombre de la modalidad
     y los datos recibidos (JSON).
     """
-    # Caso Base: Si no hay datos, el puntaje es 0
+    # Si no hay datos, devolvemos 0
     if not score_data:
         return 0.0
 
@@ -23,7 +23,7 @@ def calculate_round_score(modalidad_nombre, score_data):
         puntaje = (pajaros * 1.0) + (chanchos * 1.5) + (pavas * 2.0) + (carneros * 2.5)
 
     # --- CASO 2: FBI ---
-    # Regla: Impactos valen su número de zona (5, 4, 3, 2)
+    # Regla: Los impactos valen el número de su zona (5, 4, 3, 2)
     elif "FBI" in nombre:
         imp_5 = float(score_data.get('impactos_5', 0))
         imp_4 = float(score_data.get('impactos_4', 0))
@@ -32,9 +32,8 @@ def calculate_round_score(modalidad_nombre, score_data):
         
         puntaje = (imp_5 * 5) + (imp_4 * 4) + (imp_3 * 3) + (imp_2 * 2)
 
-    # --- CASO 3: MODALIDADES DE PUNTAJE DIRECTO (Default) ---
-    # Ejemplo: Escopeta, Bench Rest, Pistola Neumática
-    # El juez envía el total calculado o contado manualmente.
+    # --- CASO 3: MODALIDADES DIRECTAS (Default) ---
+    # Para Escopeta, Bench Rest, etc., el juez envía el total ya calculado.
     else:
         puntaje = float(score_data.get('puntaje_total_ronda', 0.0))
 
