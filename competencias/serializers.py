@@ -13,8 +13,7 @@ from .models import (
 )
 from deportistas.models import Deportista, Arma, PrestamoArma
 from clubs.models import Club
-from .score_utils import calculate_round_score
-
+from .calculadora_puntajes import calculate_round_score
 # --- NUEVO: Importamos el Servicio de Reglas de Negocio ---
 from deportistas.services import GestionDeportistaService
 

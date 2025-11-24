@@ -1,7 +1,6 @@
 # competencias/tests.py
 from django.test import TestCase
-from .score_utils import calculate_round_score 
-
+from .calculadora_puntajes import calculate_round_score
 class ScoreUtilsTestCase(TestCase):
     
     def test_calculate_silueta_metalica(self):
