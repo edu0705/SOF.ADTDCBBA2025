@@ -1,9 +1,7 @@
-# competencias/views.py
 from django.http import HttpResponse
-from django.db.models import Sum
-from datetime import date
+from django.core.exceptions import ValidationError
 
-# DRF
+# DRF Imports
 from rest_framework import viewsets, generics, status
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.decorators import action
@@ -13,7 +11,7 @@ from rest_framework.views import APIView
 # Modelos
 from .models import (
     Competencia, Modalidad, Categoria, Poligono, Juez, 
-    Inscripcion, Resultado, Record, Gasto
+    Inscripcion, Resultado, Gasto, CategoriaCompetencia # <--- Importamos modelo intermedio
 )
 
 # Serializadores
@@ -21,14 +19,20 @@ from .serializers import (
     CompetenciaSerializer, ModalidadSerializer, CategoriaSerializer, 
     PoligonoSerializer, JuezSerializer, InscripcionSerializer, 
     InscripcionCreateSerializer, ScoreSubmissionSerializer, 
-    ResultadoSerializer, GastoSerializer
+    ResultadoSerializer, GastoSerializer,
+    CategoriaCompetenciaInfoSerializer # <--- Importamos nuevo serializer
 )
 
-# Servicios y Reportes
-from .services import RankingService, ResultsService
+# Capa de Servicios
+from .services import (
+    CompetitionService, 
+    ResultsService, 
+    RankingService, 
+    ReportService
+)
 from .reports import generar_pdf_ranking, generar_recibo_pdf, generar_diploma_pdf
 
-# --- VIEWSETS ---
+# --- VIEWSETS PRINCIPALES ---
 
 class InscripcionViewSet(viewsets.ModelViewSet):
     queryset = Inscripcion.objects.all()
@@ -36,27 +40,16 @@ class InscripcionViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        """Optimización: Cargamos relaciones clave automáticamente"""
         return Inscripcion.objects.select_related('deportista', 'competencia', 'club')
 
     @action(detail=True, methods=['get'])
     def print_receipt(self, request, pk=None):
-        # Optimizamos trayendo las participaciones y categorías en una sola query
-        try:
-            inscripcion = self.get_queryset().prefetch_related(
-                'participaciones__categoria', 
-                'participaciones__modalidad'
-            ).get(pk=pk)
-        except Inscripcion.DoesNotExist:
-            return Response({"detail": "No encontrado"}, status=404)
-
+        """Genera el recibo de inscripción en PDF."""
+        inscripcion = self.get_object()
         response = HttpResponse(content_type='application/pdf')
         filename = f"Recibo_{inscripcion.id}.pdf"
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
-
-        # Generar PDF (ahora es rápido porque los datos ya están en memoria)
         generar_recibo_pdf(response, inscripcion)
-        
         return response
 
 
@@ -67,33 +60,43 @@ class CompetenciaViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
     def close_competition(self, request, pk=None):
+        """Finaliza una competencia usando el servicio de dominio."""
         competencia = self.get_object()
-        if competencia.status == 'Finalizada': 
-            return Response({"detail": "La competencia ya está cerrada."}, status=400)
-        
-        competencia.status = 'Finalizada'
-        competencia.save()
-        return Response({"message": "Competencia finalizada correctamente."}, status=200)
+        try:
+            CompetitionService.cerrar_competencia(competencia, request.user)
+            return Response({"message": "Competencia finalizada correctamente."}, status=200)
+        except ValidationError as e:
+            return Response({"detail": str(e)}, status=400)
 
     @action(detail=True, methods=['get'])
     def generate_report(self, request, pk=None):
+        """Genera el ranking preliminar en PDF."""
         competencia = self.get_object()
-        
-        # Delegamos la lógica compleja al servicio
         ranking_data = RankingService.get_ranking_competencia_pdf(competencia)
         
         response = HttpResponse(content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="Ranking_{competencia.id}.pdf"'
-        
         generar_pdf_ranking(response, competencia, ranking_data)
         return response
 
     @action(detail=True, methods=['get'])
     def official_results(self, request, pk=None):
-        """Endpoint optimizado: Delega todo al Servicio"""
+        """Obtiene JSON con resultados oficiales para el frontend."""
         competencia = self.get_object()
         data = ResultsService.get_official_results_data(competencia)
         return Response(data)
+
+    # --- NUEVO ENDPOINT PARA COSTOS ---
+    @action(detail=True, methods=['get'])
+    def categories(self, request, pk=None):
+        """
+        Devuelve las categorías habilitadas para esta competencia y sus costos específicos.
+        Uso: /api/competencias/{id}/categories/
+        """
+        competencia = self.get_object()
+        items = CategoriaCompetencia.objects.filter(competencia=competencia).select_related('categoria', 'categoria__modalidad')
+        serializer = CategoriaCompetenciaInfoSerializer(items, many=True)
+        return Response(serializer.data)
 
 
 class ResultadoViewSet(viewsets.ModelViewSet):
@@ -103,118 +106,78 @@ class ResultadoViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def print_diploma(self, request, pk=None):
-        # Optimización crítica: Cargamos toda la cadena de relaciones necesaria para el diploma
-        try:
-            resultado = Resultado.objects.select_related(
-                'inscripcion__deportista',
-                'inscripcion__competencia',
-                'inscripcion__club'
-            ).prefetch_related(
-                'inscripcion__participaciones__modalidad',
-                'inscripcion__participaciones__categoria'
-            ).get(pk=pk)
-        except Resultado.DoesNotExist:
-            return Response({"detail": "Resultado no encontrado"}, status=404)
-
-        if resultado.es_descalificado:
-             return Response({"detail": "Deportista descalificado, no se puede generar diploma."}, status=400)
-
+        """Genera diploma de participación."""
+        resultado = self.get_object()
         response = HttpResponse(content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="Diploma_{resultado.id}.pdf"'
-        
         generar_diploma_pdf(response, resultado)
         return response
 
+# --- VIEWSETS DE REPORTES ---
 
-class AnnualRankingView(APIView):
+class ReportViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
-    
-    def get(self, request):
-        year = request.query_params.get('year', date.today().year)
-        try:
-            year = int(year)
-        except ValueError:
-            year = date.today().year
 
-        data_dep, _ = RankingService.calcular_puntos_anuales(year)
-        
-        res = {'year': year, 'rankings_por_modalidad': []}
-        for mod, dict_dep in data_dep.items():
-            lst = [
-                {
-                    'deportista': f"{d['nombre']} {d['apellidos']}", 
-                    'club': d['club'], 
-                    'puntaje_total': d['puntaje_acumulado'], 
-                    'eventos_disputados': d['eventos']
-                } 
-                for d in dict_dep.values()
-            ]
-            lst.sort(key=lambda x: x['puntaje_total'], reverse=True)
-            
-            for idx, item in enumerate(lst): 
-                item['posicion'] = idx + 1
-                
-            res['rankings_por_modalidad'].append({'modalidad': mod, 'ranking': lst})
-            
-        return Response(res)
-
-
-class ClubRankingView(APIView):
-    permission_classes = [IsAuthenticated]
-    
-    def get(self, request):
-        year = request.query_params.get('year', date.today().year)
-        try:
-            year = int(year)
-        except ValueError:
-            year = date.today().year
-
-        _, data_clubes = RankingService.calcular_puntos_anuales(year)
-        
-        lst = [{'club': n, 'puntos': p} for n, p in data_clubes.items()]
-        lst.sort(key=lambda x: x['puntos'], reverse=True)
-        
-        for idx, item in enumerate(lst): 
-            item['posicion'] = idx + 1
-            
-        return Response(lst)
-
-
-class DepartmentalRecordsView(APIView):
-    permission_classes = [IsAuthenticated]
-    
-    def get(self, request):
-        # Optimizamos la carga de Récords
-        recs = Record.objects.filter(
-            es_actual=True, 
-            deportista__es_invitado=False
-        ).select_related(
-            'deportista', 'modalidad', 'categoria', 'competencia', 
-            'antecesor__deportista'
-        ).order_by('modalidad__name')
-        
-        data = []
-        for r in recs:
-            it = {
-                'modalidad': r.modalidad.name, 
-                'categoria': r.categoria.name, 
-                'actual': {
-                    'deportista': f"{r.deportista.first_name} {r.deportista.apellido_paterno}", 
-                    'puntaje': r.puntaje, 
-                    'fecha': r.fecha_registro, 
-                    'competencia': r.competencia.name
-                }, 
-                'anterior': None
-            }
-            if r.antecesor: 
-                it['anterior'] = {
-                    'deportista': f"{r.antecesor.deportista.first_name} {r.antecesor.deportista.apellido_paterno}", 
-                    'puntaje': r.antecesor.puntaje
-                }
-            data.append(it)
+    @action(detail=False, methods=['get'])
+    def poligono_stats(self, request):
+        if not hasattr(request.user, 'poligono_administrado'):
+            return Response({"detail": "Acceso denegado. No eres administrador de un polígono."}, status=403)
+        year = request.query_params.get('year')
+        year_int = int(year) if year and year.isdigit() else None
+        data = ReportService.get_poligono_report(request.user, year_int)
         return Response(data)
 
-# --- CRUD SIMPLE (Manteniendo la limpieza) ---
+    @action(detail=False, methods=['get'], permission_classes=[IsAdminUser])
+    def reafuc_arma(self, request):
+        matricula = request.query_params.get('matricula')
+        if not matricula: return Response({"detail": "Falta 'matricula'."}, status=400)
+        data = ReportService.get_reafuc_arma_traceability(matricula)
+        if not data: return Response({"detail": "Arma no encontrada."}, status=404)
+        return Response(data)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAdminUser])
+    def reafuc_deportista(self, request):
+        search = request.query_params.get('q')
+        if not search: return Response({"detail": "Falta parámetro 'q'."}, status=400)
+        data = ReportService.get_reafuc_deportista_kardex(search)
+        if not data: return Response({"detail": "Deportista no encontrado."}, status=404)
+        return Response(data)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAdminUser])
+    def trimestral(self, request):
+        year = request.query_params.get('year')
+        quarter = request.query_params.get('quarter')
+        if not year or not quarter: return Response({"detail": "Faltan 'year' y 'quarter'."}, status=400)
+        try:
+            data = ReportService.get_quarterly_report(int(year), int(quarter))
+            return Response(data)
+        except ValueError: return Response({"detail": "Parámetros inválidos."}, status=400)
+
+# --- API VIEWS ESPECIALIZADAS ---
+
+class ScoreSubmissionAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        try:
+            resultado = ResultsService.procesar_envio_puntajes(
+                data=request.data, 
+                context={'request': request}
+            )
+            return Response(ResultadoSerializer(resultado).data, status=200)
+        except ValidationError as e:
+            return Response({"detail": e.messages}, status=400)
+        except Exception as e:
+            print(f"Error procesando puntajes: {e}")
+            return Response({"detail": "Error interno.", "error": str(e)}, status=500)
+
+class InscripcionCreateAPIView(generics.CreateAPIView): 
+    queryset = Inscripcion.objects.all()
+    serializer_class = InscripcionCreateSerializer
+    permission_classes = [IsAuthenticated]
+
+# --- CRUD BÁSICO ---
+
 class PoligonoViewSet(viewsets.ModelViewSet): 
     queryset = Poligono.objects.all()
     serializer_class = PoligonoSerializer
@@ -224,10 +187,6 @@ class JuezViewSet(viewsets.ModelViewSet):
     queryset = Juez.objects.all()
     serializer_class = JuezSerializer
     permission_classes = [IsAuthenticated]
-    
-    @action(detail=True, methods=['post'])
-    def create_access(self, request, pk=None):
-        return Response({"message": "Acceso generado"})
 
 class ModalidadViewSet(viewsets.ModelViewSet): 
     queryset = Modalidad.objects.all()
@@ -247,16 +206,15 @@ class GastoViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(registrado_por=self.request.user)
 
-class InscripcionCreateAPIView(generics.CreateAPIView): 
-    queryset = Inscripcion.objects.all()
-    serializer_class = InscripcionCreateSerializer
+# --- PLACEHOLDERS LEGACY ---
+class AnnualRankingView(APIView):
     permission_classes = [IsAuthenticated]
+    def get(self, request): return Response({"detail": "Usar /api/reports/trimestral/"})
 
-class ScoreSubmissionAPIView(APIView):
+class ClubRankingView(APIView):
     permission_classes = [IsAuthenticated]
-    
-    def post(self, request, *args, **kwargs):
-        serializer = ScoreSubmissionSerializer(data=request.data, context={'request': request})
-        serializer.is_valid(raise_exception=True)
-        resultado = serializer.save() 
-        return Response(ResultadoSerializer(resultado).data, status=200)
+    def get(self, request): return Response({"detail": "En construcción"})
+
+class DepartmentalRecordsView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request): return Response({"detail": "En construcción"})

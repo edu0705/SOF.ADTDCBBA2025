@@ -1,109 +1,116 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query'; // React Query
 import { useAuth } from '../context/AuthContext';
-import deportistaService from '../services/deportistaService';
-import { FaUserPlus, FaClipboardList, FaUsers, FaMedal, FaSpinner } from 'react-icons/fa';
+
+// --- COMPONENTE EXTRAÍDO (FUERA DEL COMPONENTE PRINCIPAL) ---
+// Al definirlo aquí, React lo trata como un componente estable.
+const QuickActionCard = ({ title, icon, link, color, desc }) => (
+  <div className="col-md-4 mb-4">
+    <Link to={link} className="text-decoration-none">
+      <div className="card-modern h-100 p-4 position-relative overflow-hidden">
+        <div className={`position-absolute top-0 end-0 p-3 opacity-10 text-${color}`}>
+          <i className={`bi ${icon}`} style={{ fontSize: '5rem' }}></i>
+        </div>
+        <div className="position-relative z-1">
+          <div className={`icon-box bg-${color} bg-opacity-10 text-${color} rounded-circle d-inline-flex p-3 mb-3`}>
+            <i className={`bi ${icon} fs-3`}></i>
+          </div>
+          <h5 className="fw-bold text-dark mb-2">{title}</h5>
+          <p className="text-muted small mb-0">{desc}</p>
+        </div>
+      </div>
+    </Link>
+  </div>
+);
 
 const Dashboard = () => {
   const { user } = useAuth();
 
-  // Consulta automática de estadísticas (Caché activo por 5 minutos)
-  const { data: stats, isLoading } = useQuery({
-    queryKey: ['dashboardStats'],
-    queryFn: async () => {
-      // Usamos el servicio existente para traer stats del club/usuario
-      const res = await deportistaService.getStats(); 
-      return res.data;
-    },
-    staleTime: 1000 * 60 * 5,
-  });
-
-  const options = [
-    { 
-      title: 'Registrar Deportista', 
-      desc: 'Afilia a un nuevo atleta a tu club.', 
-      link: '/register-deportista', 
-      icon: <FaUserPlus />,
-      color: 'linear-gradient(135deg, #4e73df 0%, #224abe 100%)' 
-    },
-    { 
-      title: 'Nueva Inscripción', 
-      desc: 'Inscribe atletas a competencias activas.', 
-      link: '/register-inscripcion', 
-      icon: <FaClipboardList />,
-      color: 'linear-gradient(135deg, #1cc88a 0%, #13855c 100%)' 
-    },
-  ];
-
   return (
-    <div className="container-fluid fade-in">
-      {/* Encabezado */}
-      <div className="mb-5">
-        <span className="text-uppercase text-muted small fw-bold tracking-wide">Vista General</span>
-        <h2 className="fw-bold text-dark mt-1">
-            Hola, {user?.username || 'Club'}
-        </h2>
-        <p className="text-muted">Bienvenido al panel de gestión de tu club.</p>
+    <div className="container-fluid py-4">
+      {/* Bienvenida */}
+      <div className="row mb-5 align-items-center">
+        <div className="col-md-8">
+          <h1 className="fw-bold text-primary-dark mb-1">
+            Hola, {user?.first_name || 'Usuario'} 👋
+          </h1>
+          <p className="text-muted">Bienvenido al Sistema de Gestión Deportiva ADTCBBA.</p>
+        </div>
+        <div className="col-md-4 text-end">
+          <span className="badge bg-primary p-2 rounded-pill">
+            <i className="bi bi-calendar-event me-1"></i> Gestión 2025
+          </span>
+        </div>
       </div>
 
-      {/* Tarjetas de Acción */}
+      {/* Métricas Rápidas (Mockup visual) */}
       <div className="row mb-5">
-        {options.map((opt, i) => (
-          <div key={i} className="col-md-6 mb-4">
-            <div className="card border-0 shadow-sm h-100 hover-scale transition-transform" style={{ borderRadius: '20px' }}>
-              <div className="card-body p-4 d-flex align-items-center">
-                <div 
-                  className="rounded-4 d-flex align-items-center justify-content-center me-4 text-white shadow-sm"
-                  style={{ width: '70px', height: '70px', background: opt.color, fontSize: '1.8rem' }}
-                >
-                  {opt.icon}
-                </div>
-                <div>
-                  <h5 className="fw-bold text-dark mb-1">{opt.title}</h5>
-                  <p className="text-muted small mb-3">{opt.desc}</p>
-                  <Link to={opt.link} className="btn btn-sm rounded-pill fw-bold px-4 btn-outline-primary">
-                    Acceder
-                  </Link>
-                </div>
-              </div>
-            </div>
+        <div className="col-md-3">
+          <div className="card-modern p-3 border-start border-4 border-primary">
+            <small className="text-muted text-uppercase fw-bold">Competencias Activas</small>
+            <h2 className="fw-bold mt-2 mb-0">3</h2>
           </div>
-        ))}
+        </div>
+        <div className="col-md-3">
+          <div className="card-modern p-3 border-start border-4 border-success">
+            <small className="text-muted text-uppercase fw-bold">Inscripciones Hoy</small>
+            <h2 className="fw-bold mt-2 mb-0">12</h2>
+          </div>
+        </div>
+        <div className="col-md-3">
+          <div className="card-modern p-3 border-start border-4 border-warning">
+            <small className="text-muted text-uppercase fw-bold">Próximo Evento</small>
+            <h6 className="fw-bold mt-2 mb-0 text-truncate">Nacional FBI 9mm</h6>
+          </div>
+        </div>
       </div>
 
-      {/* Resumen de Estadísticas (Conectado a API) */}
+      {/* Accesos Directos por Rol */}
+      <h5 className="fw-bold text-secondary mb-3">Accesos Directos</h5>
       <div className="row">
-          <div className="col-md-4 mb-4">
-              <div className="card border-0 shadow-sm p-4 h-100" style={{ borderRadius: '20px' }}>
-                  <div className="d-flex align-items-center">
-                      <FaUsers className="text-primary mb-0 me-3" style={{ fontSize: '2rem', opacity: 0.2 }} />
-                      <div>
-                          {isLoading ? (
-                            <FaSpinner className="spinner-border spinner-border-sm text-muted" />
-                          ) : (
-                            <h3 className="fw-bold text-dark mb-0">{stats?.total_deportistas || 0}</h3>
-                          )}
-                          <p className="text-muted small mb-0">Deportistas Activos</p>
-                      </div>
-                  </div>
-              </div>
-          </div>
-          <div className="col-md-4 mb-4">
-              <div className="card border-0 shadow-sm p-4 h-100" style={{ borderRadius: '20px' }}>
-                   <div className="d-flex align-items-center">
-                      <FaMedal className="text-warning mb-0 me-3" style={{ fontSize: '2rem', opacity: 0.2 }} />
-                      <div>
-                          {isLoading ? (
-                             <FaSpinner className="spinner-border spinner-border-sm text-muted" />
-                          ) : (
-                             <h3 className="fw-bold text-dark mb-0">{stats?.podios || 0}</h3>
-                          )}
-                          <p className="text-muted small mb-0">Podios obtenidos</p>
-                      </div>
-                  </div>
-              </div>
-          </div>
+        <QuickActionCard 
+          title="Marcador en Vivo" 
+          desc="Ver resultados de competencias en tiempo real."
+          icon="bi-broadcast" 
+          link="/live-score" 
+          color="danger"
+        />
+        
+        {(user?.role === 'admin' || user?.is_superuser) && (
+          <>
+            <QuickActionCard 
+              title="Gestión de Competencias" 
+              desc="Crear eventos, definir costos y fechas."
+              icon="bi-trophy" 
+              link="/competencias" 
+              color="primary"
+            />
+            <QuickActionCard 
+              title="Base de Deportistas" 
+              desc="Administrar padrón, credenciales y armas."
+              icon="bi-people" 
+              link="/deportistas" 
+              color="success"
+            />
+            <QuickActionCard 
+              title="Reportes y REAFUC" 
+              desc="Generar informes oficiales y trazabilidad."
+              icon="bi-file-earmark-bar-graph" 
+              link="/reports" 
+              color="info"
+            />
+          </>
+        )}
+
+        {(user?.role === 'juez') && (
+          <QuickActionCard 
+            title="Panel de Juez" 
+            desc="Registrar puntajes y validar series."
+            icon="bi-pencil-square" 
+            link="/judge-panel" 
+            color="warning"
+          />
+        )}
       </div>
     </div>
   );

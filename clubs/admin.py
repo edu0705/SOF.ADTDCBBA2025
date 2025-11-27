@@ -1,4 +1,8 @@
 from django.contrib import admin
 from .models import Club
 
-admin.site.register(Club)
+@admin.register(Club)
+class ClubAdmin(admin.ModelAdmin):
+    list_display = ('name', 'president_name', 'address')
+    search_fields = ('name', 'president_name')
+    ordering = ('name',)

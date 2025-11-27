@@ -1,128 +1,116 @@
-# users/views.py
 from django.conf import settings
-from django.middleware import csrf
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from rest_framework import status
+from rest_framework import status, permissions
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+from django.contrib.auth import authenticate, logout
 
-# Importamos nuestro nuevo Servicio y Serializadores
-from .services import NotificationService
-from .serializers import UserInfoSerializer
-
-# --- 1. AUTENTICACIÓN SEGURA (Cookies HttpOnly) ---
-
-class CustomTokenObtainPairView(TokenObtainPairView):
+# --- 1. LOGIN CON COOKIES ---
+class CookieTokenObtainPairView(TokenObtainPairView):
     def post(self, request, *args, **kwargs):
-        try:
-            response = super().post(request, *args, **kwargs)
-        except Exception:
-            return Response({"detail": "Credenciales inválidas"}, status=status.HTTP_401_UNAUTHORIZED)
+        # Genera los tokens (Access y Refresh) usando la lógica estándar
+        response = super().post(request, *args, **kwargs)
         
         if response.status_code == 200:
-            access_token = response.data.get('access')
-            refresh_token = response.data.get('refresh')
-
-            # Seteamos cookies seguras
-            self._set_auth_cookies(response, access_token, refresh_token)
-
-            # Limpiamos el cuerpo de la respuesta
-            del response.data['access']
-            del response.data['refresh']
+            tokens = response.data # Aquí están los tokens en texto plano
             
-            csrf.get_token(request) 
-            response.data['message'] = 'Login exitoso via Cookies'
+            # Limpiamos el cuerpo de la respuesta para no exponer tokens en el JSON
+            # (El frontend solo necesita saber "OK", no ver el token)
+            response.data = {"success": True, "message": "Login exitoso"}
 
+            # INYECTAMOS LA COOKIE DE ACCESO
+            response.set_cookie(
+                key=settings.AUTH_COOKIE, # 'access'
+                value=tokens['access'],
+                expires=settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'],
+                secure=settings.AUTH_COOKIE_SECURE, # True en Prod
+                httponly=settings.AUTH_COOKIE_HTTP_ONLY, # True siempre
+                samesite=settings.AUTH_COOKIE_SAMESITE
+            )
+            
+            # INYECTAMOS LA COOKIE DE REFRESH
+            response.set_cookie(
+                key=settings.AUTH_COOKIE_REFRESH, # 'refresh'
+                value=tokens['refresh'],
+                expires=settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'],
+                secure=settings.AUTH_COOKIE_SECURE,
+                httponly=settings.AUTH_COOKIE_HTTP_ONLY,
+                samesite=settings.AUTH_COOKIE_SAMESITE
+            )
+            
         return response
 
-    def _set_auth_cookies(self, response, access, refresh):
-        cookie_params = {
-            'secure': settings.AUTH_COOKIE_SECURE,
-            'httponly': settings.AUTH_COOKIE_HTTP_ONLY,
-            'samesite': settings.AUTH_COOKIE_SAMESITE,
-        }
-        
-        response.set_cookie(
-            key=settings.AUTH_COOKIE, 
-            value=access, 
-            expires=settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'],
-            **cookie_params
-        )
-        response.set_cookie(
-            key=settings.AUTH_COOKIE_REFRESH, 
-            value=refresh, 
-            expires=settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'], 
-            **cookie_params
-        )
-
-class CustomTokenRefreshView(TokenRefreshView):
+# --- 2. REFRESH CON COOKIES ---
+class CookieTokenRefreshView(TokenRefreshView):
     def post(self, request, *args, **kwargs):
+        # Si la cookie de refresh está presente, la inyectamos en el body 
+        # para que el serializador de SimpleJWT la procese como si viniera en JSON
         refresh_token = request.COOKIES.get(settings.AUTH_COOKIE_REFRESH)
         
-        if not refresh_token:
-            return Response({"detail": "No refresh token"}, status=status.HTTP_401_UNAUTHORIZED)
-
-        # Inyectamos el token manualmente para evitar errores de body vacío
-        serializer = self.get_serializer(data={"refresh": refresh_token})
-        
-        try:
-            serializer.is_valid(raise_exception=True)
-        except TokenError as e:
-            raise InvalidToken(e.args[0])
-
-        response = Response(serializer.validated_data, status=status.HTTP_200_OK)
-
-        # Actualizamos cookies
-        access_token = response.data.get('access')
-        cookie_params = {
-            'secure': settings.AUTH_COOKIE_SECURE,
-            'httponly': settings.AUTH_COOKIE_HTTP_ONLY,
-            'samesite': settings.AUTH_COOKIE_SAMESITE,
-        }
-
-        response.set_cookie(
-            key=settings.AUTH_COOKIE, 
-            value=access_token, 
-            expires=settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'],
-            **cookie_params
-        )
-        
-        if 'refresh' in response.data:
-            response.set_cookie(
-                key=settings.AUTH_COOKIE_REFRESH, 
-                value=response.data['refresh'], 
-                expires=settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'], 
-                **cookie_params
-            )
-            del response.data['refresh']
+        if refresh_token:
+            request.data['refresh'] = refresh_token
             
-        if 'access' in response.data: del response.data['access']
+        try:
+            response = super().post(request, *args, **kwargs)
+        except (InvalidToken, TokenError):
+            return Response({"detail": "Token inválido o expirado"}, status=401)
 
+        if response.status_code == 200:
+            # Actualizamos la cookie de acceso con el nuevo token
+            access_token = response.data['access']
+            response.data = {"success": True, "message": "Sesión renovada"}
+            
+            response.set_cookie(
+                key=settings.AUTH_COOKIE,
+                value=access_token,
+                expires=settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'],
+                secure=settings.AUTH_COOKIE_SECURE,
+                httponly=settings.AUTH_COOKIE_HTTP_ONLY,
+                samesite=settings.AUTH_COOKIE_SAMESITE
+            )
         return response
 
+# --- 3. LOGOUT (Matar Cookies) ---
 class LogoutView(APIView):
     def post(self, request):
-        response = Response({"message": "Logout exitoso"})
+        logout(request) # Limpia sesión de Django
+        response = Response({"success": True, "message": "Logout exitoso"})
+        # Borramos las cookies seteándolas vacías y expiradas
         response.delete_cookie(settings.AUTH_COOKIE)
         response.delete_cookie(settings.AUTH_COOKIE_REFRESH)
         return response
 
+# --- 4. DATOS DEL USUARIO (User Info) ---
+class UserInfoView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
 
-# --- 2. VISTAS DE NEGOCIO (Refactorizadas) ---
-
-class UserInfoAPIView(APIView):
-    permission_classes = [IsAuthenticated]
-    
     def get(self, request):
-        serializer = UserInfoSerializer(request.user)
-        return Response(serializer.data)
+        user = request.user
+        # Construimos la respuesta con los roles (groups)
+        roles = list(user.groups.values_list('name', flat=True))
+        
+        # Agregamos rol del modelo personalizado si existe
+        if hasattr(user, 'role') and user.role:
+             roles.append(user.get_role_display())
+
+        return Response({
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'groups': roles, # El frontend usa esto para redirigir
+            'is_superuser': user.is_superuser,
+            'force_password_change': False # Puedes agregar lógica aquí
+        })
+# ... (tus imports anteriores)
 
 class UserNotificationsView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        # ¡MIRA QUÉ LIMPIO! Toda la lógica compleja se fue al servicio.
-        notifications = NotificationService.get_user_notifications(request.user)
-        return Response(notifications)
+        # Retornamos una lista vacía para que el frontend esté feliz
+        # En el futuro, aquí puedes conectar un modelo real de Notificaciones
+        return Response([])

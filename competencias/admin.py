@@ -1,61 +1,135 @@
-# competencias/admin.py
-
 from django.contrib import admin
-from django.utils import timezone 
+from django.http import HttpResponse
+from django.db.models import Sum
 from .models import (
-    Poligono, 
-    Juez, 
-    Modalidad, 
-    Categoria, 
-    Competencia,
-    Inscripcion,
-    Participacion, # <-- Modelo de Inscripción Múltiple
-    Resultado    
+    Competencia, Modalidad, Categoria, Poligono, Juez, 
+    Inscripcion, Resultado, Gasto, Record
 )
+# Importamos el generador de certificados
+from .reports import generar_diploma_pdf
 
-# --- Inlines para la Edición Anidada ---
+# --- INLINES ---
 
-# Inline para mostrar qué modalidades se inscribieron
-class ParticipacionInline(admin.TabularInline): 
-    model = Participacion
+class ResultadoInline(admin.TabularInline):
+    model = Resultado
+    extra = 0 
+    fields = ('ronda_o_serie', 'puntaje', 'es_descalificado', 'juez_que_registro')
+    readonly_fields = ('fecha_registro',)
+
+class InscripcionInline(admin.TabularInline):
+    model = Inscripcion
     extra = 0
-    # Muestra la modalidad y el arma específica
-    fields = ('modalidad', 'arma_utilizada') 
-    readonly_fields = ('modalidad', 'arma_utilizada') # El Tesorero solo debe VER esto, no cambiarlo
+    autocomplete_fields = ['deportista', 'club']
+    fields = ('deportista', 'club', 'estado', 'costo_inscripcion', 'monto_pagado')
+    readonly_fields = ('costo_inscripcion',) # Calculado automáticamente
+    show_change_link = True
 
-# --- Modelo Principal para Inscripción ---
-class InscripcionAdmin(admin.ModelAdmin):
-    inlines = [ParticipacionInline]
-    list_display = ('deportista', 'competencia', 'club', 'estado', 'costo_inscripcion')
-    list_filter = ('estado', 'competencia', 'club')
-    search_fields = ('deportista__first_name', 'competencia__name')
+class GastoInline(admin.TabularInline):
+    """Permite registrar los egresos directamente en la competencia."""
+    model = Gasto
+    extra = 0
+    fields = ('descripcion', 'monto', 'fecha')
+    readonly_fields = ('fecha',)
 
-    # Organización de campos en la forma de edición
-    fieldsets = (
-        ('Información General', {
-            'fields': ('competencia', 'deportista', 'club'),
-        }),
-        ('Aprobación y Costo', {
-            # Estos son los campos que el Tesorero DEBE modificar
-            'fields': ('estado', 'costo_inscripcion', 'approved_by', 'approved_at'),
-        }),
-    )
+# --- ADMINS PRINCIPALES ---
+
+@admin.register(Competencia)
+class CompetenciaAdmin(admin.ModelAdmin):
+    list_display = ('name', 'start_date', 'status', 'ver_balance_financiero')
+    list_filter = ('status', 'start_date', 'type')
+    search_fields = ('name',)
     
-    # Lógica para registrar quién aprobó la inscripción
-    def save_model(self, request, obj, form, change):
-        if obj.estado == 'APROBADA' and not obj.approved_by:
-            obj.approved_by = request.user
-            obj.approved_at = timezone.now()
-        super().save_model(request, obj, form, change)
+    filter_horizontal = ('jueces',) 
+    # Agregamos GastoInline para gestionar egresos aquí mismo
+    inlines = [InscripcionInline, GastoInline]
+    
+    # Agregamos el balance financiero en la vista de detalle (formulario)
+    readonly_fields = ('ver_balance_detalle',) 
 
-# --- Registra los modelos con sus clases Admin ---
+    actions = ['marcar_finalizada']
 
-admin.site.register(Competencia)
-admin.site.register(Inscripcion, InscripcionAdmin)
-admin.site.register(Participacion) 
-admin.site.register(Resultado)
+    @admin.action(description='Marcar competencias seleccionadas como Finalizadas')
+    def marcar_finalizada(self, request, queryset):
+        queryset.update(status='Finalizada')
 
-admin.site.register(Poligono)
-admin.site.register(Juez)
-admin.site.register(Modalidad)
-admin.site.register(Categoria)
+    # Vista rápida en la lista
+    def ver_balance_financiero(self, obj):
+        ingresos = obj.inscripciones.aggregate(total=Sum('monto_pagado'))['total'] or 0
+        egresos = obj.gastos.aggregate(total=Sum('monto'))['total'] or 0
+        balance = ingresos - egresos
+        return f"{balance} Bs"
+    ver_balance_financiero.short_description = "Balance Neto"
+
+    # Vista detallada dentro del formulario
+    def ver_balance_detalle(self, obj):
+        ingresos = obj.inscripciones.aggregate(total=Sum('monto_pagado'))['total'] or 0
+        egresos = obj.gastos.aggregate(total=Sum('monto'))['total'] or 0
+        balance = ingresos - egresos
+        return f"INGRESOS (Inscripciones): {ingresos} Bs  |  EGRESOS (Gastos): {egresos} Bs  |  TOTAL CAJA: {balance} Bs"
+    ver_balance_detalle.short_description = "Resumen Financiero Oficial"
+
+@admin.register(Inscripcion)
+class InscripcionAdmin(admin.ModelAdmin):
+    # Agregamos las columnas solicitadas: Modalidades inscritas y Totales
+    list_display = ('id', 'deportista', 'ver_modalidades', 'estado', 'costo_inscripcion', 'monto_pagado')
+    list_filter = ('competencia', 'club', 'estado')
+    search_fields = ('deportista__first_name', 'deportista__apellido_paterno', 'competencia__name')
+    autocomplete_fields = ['deportista', 'competencia', 'club']
+    inlines = [ResultadoInline]
+    readonly_fields = ('costo_inscripcion',)
+
+    def ver_modalidades(self, obj):
+        """Muestra las modalidades y categorías en las que se inscribió."""
+        participaciones = obj.participaciones.select_related('modalidad', 'categoria').all()
+        if not participaciones:
+            return "Sin participaciones"
+        return ", ".join([f"{p.modalidad.name} ({p.categoria.name})" for p in participaciones])
+    ver_modalidades.short_description = "Modalidades / Categorías"
+
+@admin.register(Resultado)
+class ResultadoAdmin(admin.ModelAdmin):
+    list_display = ('inscripcion', 'ronda_o_serie', 'puntaje', 'es_descalificado', 'juez_que_registro')
+    list_filter = ('inscripcion__competencia', 'es_descalificado')
+    search_fields = ('inscripcion__deportista__first_name',)
+    readonly_fields = ('codigo_verificacion', 'fecha_registro')
+    
+    actions = ['imprimir_certificado']
+
+    @admin.action(description='🎓 Imprimir Certificado con QR')
+    def imprimir_certificado(self, request, queryset):
+        if queryset.count() == 1:
+            resultado = queryset.first()
+            response = HttpResponse(content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="Certificado_{resultado.id}.pdf"'
+            generar_diploma_pdf(response, resultado)
+            return response
+        else:
+            self.message_user(request, "Por favor, seleccione solo un resultado a la vez para imprimir el certificado.", level='warning')
+
+# --- CONFIGURACIÓN BÁSICA ---
+
+@admin.register(Modalidad)
+class ModalidadAdmin(admin.ModelAdmin):
+    list_display = ('name', 'es_fuego')
+    search_fields = ('name',)
+    list_filter = ('es_fuego',)
+
+@admin.register(Categoria)
+class CategoriaAdmin(admin.ModelAdmin):
+    list_display = ('name', 'modalidad', 'calibre_permitido')
+    list_filter = ('modalidad',)
+
+@admin.register(Poligono)
+class PoligonoAdmin(admin.ModelAdmin):
+    list_display = ('name', 'address', 'numero_licencia', 'user')
+    search_fields = ('name', 'user__username')
+
+@admin.register(Juez)
+class JuezAdmin(admin.ModelAdmin):
+    list_display = ('full_name', 'license_number')
+    search_fields = ('full_name',)
+
+@admin.register(Gasto)
+class GastoAdmin(admin.ModelAdmin):
+    list_display = ('descripcion', 'monto', 'competencia', 'fecha')
+    list_filter = ('competencia',)

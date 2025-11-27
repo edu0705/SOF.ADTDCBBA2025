@@ -1,272 +1,189 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import competenciaService from '../services/competenciaService';
-import { FaSave, FaTrophy, FaList, FaGavel, FaMoneyBillWave, FaArrowRight, FaArrowLeft } from 'react-icons/fa';
+import { FaTrophy, FaCalendarAlt, FaMapMarkerAlt, FaSave, FaArrowLeft, FaMoneyBillWave } from 'react-icons/fa';
 
 const CreateCompetencia = () => {
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
   
-  // Datos Maestros
+  // Estados para selectores
   const [poligonos, setPoligonos] = useState([]);
-  const [modalidades, setModalidades] = useState([]); // Incluye categorías anidadas
-  const [jueces, setJueces] = useState([]);
-  const [loading, setLoading] = useState(true);
 
-  // Estado del Asistente (Wizard)
-  const [step, setStep] = useState(1);
-  
-  // Datos del Formulario General
   const [formData, setFormData] = useState({
     name: '',
+    description: '',
     start_date: '',
     end_date: '',
-    type: 'Departamental',
+    hora_competencia: '08:00',
     poligono: '',
-    costo_inscripcion_base: 0, // NUEVO: Costo general de entrada
-    status: 'Próxima'
+    type: 'Departamental',
+    status: 'Próxima',
+    costo_inscripcion_base: '0',
+    costo_limite_global: '',
+    numero_convocatoria: '',
+    categorias: [], 
+    jueces: [] 
   });
 
-  // Configuración de Categorías y Precios
-  // Estructura: { categoriaId: { selected: true, costo: 0 } }
-  const [catConfig, setCatConfig] = useState({});
-  
-  // Selección de Jueces
-  const [selectedJueces, setSelectedJueces] = useState([]);
-
   useEffect(() => {
-    const loadData = async () => {
+    const loadAuxData = async () => {
       try {
-        const [resPol, resMod, resJuez] = await Promise.all([
-            competenciaService.api.get('poligonos/'),
-            competenciaService.getModalidades(),
-            competenciaService.api.get('jueces/')
-        ]);
-        setPoligonos(resPol.data.results || resPol.data);
-        setModalidades(resMod.data.results || resMod.data);
-        setJueces(resJuez.data.results || resJuez.data);
-      } catch (err) { console.error(err); } 
-      finally { setLoading(false); }
+        // Mockup temporal (Aquí conectarías con tu API de polígonos)
+        setPoligonos([{id: 1, name: 'Polígono Santiváñez'}, {id: 2, name: 'Polígono Escuela Naval'}]);
+      } catch (err) {
+        console.error("Error cargando datos auxiliares", err);
+      }
     };
-    loadData();
+    loadAuxData();
   }, []);
 
-  // --- HANDLERS ---
-  const handleInputChange = (e) => {
-      setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const toggleJuez = (id) => {
-      setSelectedJueces(prev => prev.includes(id) ? prev.filter(j => j !== id) : [...prev, id]);
-  };
-
-  const toggleCategoria = (catId) => {
-      setCatConfig(prev => {
-          const newState = { ...prev };
-          if (newState[catId]) delete newState[catId]; // Desmarcar
-          else newState[catId] = { selected: true, costo: 0 }; // Marcar (Precio 0 por defecto)
-          return newState;
-      });
-  };
-
-  const updateCostoCategoria = (catId, nuevoCosto) => {
-      setCatConfig(prev => ({
-          ...prev,
-          [catId]: { ...prev[catId], costo: parseFloat(nuevoCosto) || 0 }
-      }));
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
-      e.preventDefault();
-      
-      // 1. Preparar lista de IDs de categorías
-      const categoriasIds = Object.keys(catConfig).map(id => parseInt(id));
-      
-      // 2. Preparar estructura de precios para el Serializer
-      // El backend espera 'precios_input' = [{id: 1, costo: 50}, ...]
-      const preciosPayload = Object.entries(catConfig).map(([id, conf]) => ({
-          id: parseInt(id),
-          costo: conf.costo
-      }));
-
-      const payload = {
-          ...formData,
-          jueces: selectedJueces,
-          categorias: categoriasIds,
-          precios_input: preciosPayload // Enviamos la configuración de precios
-      };
-
-      try {
-          await competenciaService.api.post('competencias/', payload);
-          alert("Competencia creada y configurada con éxito.");
-          navigate('/admin/competencias');
-      } catch (err) {
-          console.error(err);
-          alert("Error al crear la competencia. Revise los datos.");
-      }
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await competenciaService.createCompetencia(formData);
+      alert("✅ Competencia creada exitosamente.");
+      navigate('/competencias');
+    } catch (err) {
+      console.error(err);
+      alert("Error al crear competencia. Revise los campos obligatorios.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (loading) return <div className="text-center p-5">Cargando configuración...</div>;
-
   return (
-    <div className="container fade-in py-4">
-      <div className="card-elegant mx-auto" style={{ maxWidth: '900px' }}>
-        
-        {/* HEADER DEL WIZARD */}
-        <div className="card-header-elegant bg-white p-4 border-bottom">
-            <div className="d-flex justify-content-between align-items-center mb-3">
-                <h4 className="m-0 fw-bold text-primary">Nueva Competencia</h4>
-                <span className="badge bg-light text-dark border">Paso {step} de 3</span>
+    <div className="container py-5 fade-in">
+      <div className="row justify-content-center">
+        <div className="col-lg-10">
+          
+          {/* HEADER */}
+          <div className="d-flex align-items-center mb-4">
+            <button onClick={() => navigate(-1)} className="btn btn-light rounded-circle shadow-sm me-3 hover-scale">
+                <FaArrowLeft className="text-muted"/>
+            </button>
+            <div>
+                <h2 className="fw-bold text-primary mb-0">Nueva Competencia</h2>
+                <p className="text-muted small mb-0">Configure los parámetros del evento oficial.</p>
             </div>
-            <div className="progress" style={{height: '5px'}}>
-                <div className="progress-bar" style={{width: `${(step/3)*100}%`}}></div>
-            </div>
-        </div>
+          </div>
 
-        <div className="card-body p-4">
           <form onSubmit={handleSubmit}>
-            
-            {/* --- PASO 1: DATOS GENERALES --- */}
-            {step === 1 && (
-                <div className="fade-in">
-                    <h5 className="fw-bold text-dark mb-4"><FaTrophy className="me-2"/> Información General</h5>
-                    <div className="row g-3">
-                        <div className="col-12">
-                            <label className="small fw-bold text-muted">Nombre del Evento</label>
-                            <input type="text" className="form-control" name="name" value={formData.name} onChange={handleInputChange} required placeholder="Ej: Copa Apertura 2026" />
+            <div className="row g-4">
+                
+                {/* COLUMNA IZQUIERDA: DATOS PRINCIPALES */}
+                <div className="col-md-8">
+                    <div className="card-modern border-0 shadow-sm mb-4">
+                        <div className="card-header bg-white border-bottom p-4">
+                            <h6 className="text-primary fw-bold mb-0 d-flex align-items-center">
+                                <FaTrophy className="me-2"/> Información del Evento
+                            </h6>
                         </div>
-                        <div className="col-md-6">
-                            <label className="small fw-bold text-muted">Fecha Inicio</label>
-                            <input type="date" className="form-control" name="start_date" value={formData.start_date} onChange={handleInputChange} required />
+                        <div className="card-body p-4">
+                            <div className="mb-3">
+                                <label className="form-label small fw-bold text-muted">Nombre del Evento *</label>
+                                <input name="name" className="form-control form-control-lg bg-light border-0" placeholder="Ej: 3ra Fecha Departamental FBI" onChange={handleChange} required />
+                            </div>
+                            <div className="row g-3 mb-3">
+                                <div className="col-md-6">
+                                    <label className="form-label small fw-bold text-muted">Tipo</label>
+                                    <select name="type" className="form-select bg-light border-0" onChange={handleChange}>
+                                        <option value="Departamental">Departamental</option>
+                                        <option value="Nacional">Nacional</option>
+                                        <option value="Interno">Interno</option>
+                                    </select>
+                                </div>
+                                <div className="col-md-6">
+                                    <label className="form-label small fw-bold text-muted">Nro. Convocatoria</label>
+                                    <input name="numero_convocatoria" className="form-control bg-light border-0" onChange={handleChange} />
+                                </div>
+                            </div>
+                            <div className="mb-3">
+                                <label className="form-label small fw-bold text-muted">Descripción / Notas</label>
+                                <textarea name="description" className="form-control bg-light border-0" rows="3" onChange={handleChange}></textarea>
+                            </div>
                         </div>
-                        <div className="col-md-6">
-                            <label className="small fw-bold text-muted">Fecha Fin</label>
-                            <input type="date" className="form-control" name="end_date" value={formData.end_date} onChange={handleInputChange} required />
+                    </div>
+
+                    <div className="card-modern border-0 shadow-sm">
+                        <div className="card-header bg-white border-bottom p-4">
+                            <h6 className="text-success fw-bold mb-0 d-flex align-items-center">
+                                <FaMoneyBillWave className="me-2"/> Costos y Reglas
+                            </h6>
                         </div>
-                        <div className="col-md-6">
-                            <label className="small fw-bold text-muted">Tipo</label>
-                            <select className="form-select" name="type" value={formData.type} onChange={handleInputChange}>
-                                <option>Departamental</option>
-                                <option>Nacional</option>
-                            </select>
+                        <div className="card-body p-4">
+                            <div className="alert alert-light border-start border-4 border-success small text-muted">
+                                Defina los costos base. Si establece un <strong>Costo Máximo Global</strong>, el sistema ajustará automáticamente el total a pagar de los deportistas para no exceder ese monto.
+                            </div>
+                            <div className="row g-3">
+                                <div className="col-md-6">
+                                    <label className="form-label small fw-bold text-muted">Costo Inscripción Base (Bs)</label>
+                                    <input type="number" name="costo_inscripcion_base" className="form-control bg-light border-0 fw-bold" defaultValue="0" onChange={handleChange} />
+                                </div>
+                                <div className="col-md-6">
+                                    <label className="form-label small fw-bold text-success">Costo Máximo Global (Bs)</label>
+                                    <input type="number" name="costo_limite_global" className="form-control border-success bg-success bg-opacity-10 fw-bold text-success" placeholder="Opcional (Ej: 100)" onChange={handleChange} />
+                                </div>
+                            </div>
                         </div>
-                        <div className="col-md-6">
-                            <label className="small fw-bold text-muted">Polígono (Sede)</label>
-                            <select className="form-select" name="poligono" value={formData.poligono} onChange={handleInputChange} required>
+                    </div>
+                </div>
+
+                {/* COLUMNA DERECHA: FECHAS Y UBICACIÓN */}
+                <div className="col-md-4">
+                    <div className="card-modern border-0 shadow-sm mb-4">
+                        <div className="card-header bg-white border-bottom p-4">
+                            <h6 className="text-warning fw-bold mb-0 d-flex align-items-center text-dark">
+                                <FaCalendarAlt className="me-2 text-warning"/> Agenda
+                            </h6>
+                        </div>
+                        <div className="card-body p-4">
+                            <div className="mb-3">
+                                <label className="form-label small fw-bold text-muted">Fecha Inicio *</label>
+                                <input type="date" name="start_date" className="form-control bg-light border-0" onChange={handleChange} required />
+                            </div>
+                            <div className="mb-3">
+                                <label className="form-label small fw-bold text-muted">Fecha Fin *</label>
+                                <input type="date" name="end_date" className="form-control bg-light border-0" onChange={handleChange} required />
+                            </div>
+                            <div className="mb-3">
+                                <label className="form-label small fw-bold text-muted">Hora Inicio</label>
+                                <input type="time" name="hora_competencia" className="form-control bg-light border-0" defaultValue="08:00" onChange={handleChange} />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="card-modern border-0 shadow-sm mb-4">
+                        <div className="card-header bg-white border-bottom p-4">
+                            <h6 className="text-danger fw-bold mb-0 d-flex align-items-center">
+                                <FaMapMarkerAlt className="me-2"/> Ubicación
+                            </h6>
+                        </div>
+                        <div className="card-body p-4">
+                            <label className="form-label small fw-bold text-muted">Polígono Oficial</label>
+                            <select name="poligono" className="form-select bg-light border-0" onChange={handleChange} required>
                                 <option value="">-- Seleccione --</option>
-                                {poligonos.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                {poligonos.map(p => (
+                                    <option key={p.id} value={p.id}>{p.name}</option>
+                                ))}
                             </select>
                         </div>
                     </div>
-                </div>
-            )}
 
-            {/* --- PASO 2: FINANZAS Y CATEGORÍAS --- */}
-            {step === 2 && (
-                <div className="fade-in">
-                    <h5 className="fw-bold text-dark mb-4"><FaMoneyBillWave className="me-2"/> Categorías y Precios</h5>
-                    
-                    {/* Costo Base Global */}
-                    <div className="bg-light p-3 rounded border mb-4">
-                        <label className="fw-bold text-primary small d-block mb-2">Costo de Inscripción Base (Derecho de Campo)</label>
-                        <div className="input-group" style={{maxWidth: '200px'}}>
-                            <span className="input-group-text">Bs</span>
-                            <input type="number" className="form-control fw-bold" name="costo_inscripcion_base" value={formData.costo_inscripcion_base} onChange={handleInputChange} />
-                        </div>
-                        <small className="text-muted">Este monto se cobra una sola vez por deportista al inscribirse.</small>
-                    </div>
-
-                    {/* Selección de Categorías y sus Precios */}
-                    <label className="fw-bold text-dark small mb-2 d-block">Seleccione categorías habilitadas y defina sus costos:</label>
-                    <div className="accordion" id="accordionModalidades">
-                        {modalidades.map((mod, idx) => (
-                            <div className="accordion-item border-0 mb-2 shadow-sm rounded overflow-hidden" key={mod.id}>
-                                <h2 className="accordion-header">
-                                    <button className="accordion-button collapsed bg-white text-dark fw-bold" type="button" data-bs-toggle="collapse" data-bs-target={`#collapse${idx}`}>
-                                        <FaList className="me-2 text-secondary"/> {mod.name}
-                                    </button>
-                                </h2>
-                                <div id={`collapse${idx}`} className="accordion-collapse collapse" data-bs-parent="#accordionModalidades">
-                                    <div className="accordion-body bg-light">
-                                        {mod.categorias.map(cat => (
-                                            <div key={cat.id} className="d-flex justify-content-between align-items-center mb-2 p-2 border-bottom">
-                                                <div className="form-check">
-                                                    <input 
-                                                        className="form-check-input" type="checkbox" 
-                                                        id={`cat-${cat.id}`}
-                                                        checked={!!catConfig[cat.id]}
-                                                        onChange={() => toggleCategoria(cat.id)}
-                                                        style={{cursor: 'pointer'}}
-                                                    />
-                                                    <label className="form-check-label cursor-pointer" htmlFor={`cat-${cat.id}`}>{cat.name}</label>
-                                                </div>
-                                                
-                                                {/* Input de Precio (Solo aparece si está seleccionado) */}
-                                                {catConfig[cat.id] && (
-                                                    <div className="input-group input-group-sm fade-in" style={{width: '130px'}}>
-                                                        <span className="input-group-text bg-white text-success fw-bold border-end-0">Bs</span>
-                                                        <input 
-                                                            type="number" className="form-control text-end border-start-0" 
-                                                            placeholder="0"
-                                                            value={catConfig[cat.id].costo}
-                                                            onChange={(e) => updateCostoCategoria(cat.id, e.target.value)}
-                                                        />
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* --- PASO 3: JUECES --- */}
-            {step === 3 && (
-                <div className="fade-in">
-                    <h5 className="fw-bold text-dark mb-4"><FaGavel className="me-2"/> Asignación de Jueces</h5>
-                    <p className="text-muted small">Seleccione los jueces autorizados para calificar en este evento.</p>
-                    
-                    <div className="row">
-                        {jueces.map(juez => (
-                            <div key={juez.id} className="col-md-6 mb-2">
-                                <div className={`p-3 rounded border d-flex align-items-center gap-3 cursor-pointer transition-all ${selectedJueces.includes(juez.id) ? 'border-primary bg-primary bg-opacity-10' : 'bg-white'}`}
-                                     onClick={() => toggleJuez(juez.id)}>
-                                    <div className={`rounded-circle p-1 ${selectedJueces.includes(juez.id) ? 'bg-primary' : 'bg-secondary'}`}></div>
-                                    <div>
-                                        <strong className="d-block text-dark">{juez.full_name}</strong>
-                                        <small className="text-muted">{juez.license_number}</small>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* BOTONES DE NAVEGACIÓN */}
-            <div className="d-flex justify-content-between mt-5 pt-3 border-top">
-                {step > 1 ? (
-                    <button type="button" className="btn btn-light rounded-pill px-4" onClick={() => setStep(step - 1)}>
-                        <FaArrowLeft className="me-2"/> Anterior
+                    <button type="submit" className="btn btn-primary w-100 py-3 rounded-pill fw-bold shadow-lg hover-lift" disabled={loading}>
+                        {loading ? 'Guardando...' : <><FaSave className="me-2"/> Crear Competencia</>}
                     </button>
-                ) : (
-                    <div></div> // Espaciador para alinear a la derecha
-                )}
+                </div>
 
-                {step < 3 ? (
-                    <button type="button" className="btn btn-primary rounded-pill px-4 shadow-sm" onClick={() => setStep(step + 1)}>
-                        Siguiente <FaArrowRight className="ms-2"/>
-                    </button>
-                ) : (
-                    <button type="submit" className="btn btn-success rounded-pill px-5 fw-bold shadow-lg hover-scale">
-                        <FaSave className="me-2"/> Crear Competencia
-                    </button>
-                )}
             </div>
-
           </form>
+
         </div>
       </div>
     </div>

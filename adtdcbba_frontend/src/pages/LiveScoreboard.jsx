@@ -1,20 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import competenciaService from '../services/competenciaService';
 import { WS_BASE_URL } from '../config/api';
-import { useAuth } from '../context/AuthContext'; // Importamos el contexto
+import { useAuth } from '../context/AuthContext';
 
 const LiveScoreboard = () => {
   const [selectedCompetencia, setSelectedCompetencia] = useState('');
   const [scores, setScores] = useState({});
   const [wsStatus, setWsStatus] = useState('Desconectado');
   
-  // Usamos el estado global de autenticación en lugar de localStorage
+  // Ahora sí usaremos 'loading' para mejorar la UX inicial
   const { isLoggedIn, loading } = useAuth();
-  
-  const wsRef = useRef(null);
 
-  // 1. Carga de Competencias
+  // 1. Carga de Competencias (Solo activas)
   const { data: competencias = [] } = useQuery({
     queryKey: ['competencias'],
     queryFn: async () => {
@@ -22,7 +20,6 @@ const LiveScoreboard = () => {
       const data = (res.data && res.data.results) ? res.data.results : res.data;
       return data.filter(comp => comp.status !== 'Finalizada');
     },
-    // Solo intentamos cargar si el usuario está logueado
     enabled: isLoggedIn, 
     staleTime: 1000 * 60 * 5, 
   });
@@ -30,166 +27,194 @@ const LiveScoreboard = () => {
   const handleCompetenciaChange = (e) => {
     const compId = e.target.value;
     setSelectedCompetencia(compId);
-    setScores({}); 
+    setScores({}); // Limpiamos la pizarra al cambiar
     
-    if (compId) {
-      setWsStatus('Conectando...');
-    } else {
+    // El cambio de estado disparará el useEffect automáticamente
+    if (!compId) {
       setWsStatus('Desconectado');
     }
   };
 
-  // 2. Lógica de WebSocket Segura (Sin Token en URL)
+  // 2. Lógica de Conexión WebSocket (Refactorizada y Corregida)
   useEffect(() => {
-    // Requisitos: Competencia seleccionada y Usuario Autenticado
+    // Si no hay competencia o el usuario no está logueado, no hacemos nada
     if (!selectedCompetencia || !isLoggedIn) return;
 
-    // Limpieza previa
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
+    let ws = null;
+    let reconnectTimeout = null;
+    let isMounted = true; // Bandera para evitar actualizaciones en componentes desmontados
 
-    // NUEVA URL: Ya no exponemos el token aquí. 
-    // La cookie 'access' viajará automáticamente con el handshake.
-    const WS_URL = `${WS_BASE_URL}/competencia/${selectedCompetencia}/`;
-    
-    console.log(`Iniciando conexión segura WS a: ${WS_URL}`);
-    
-    const ws = new WebSocket(WS_URL);
-    wsRef.current = ws;
+    // Definimos la función connect DENTRO del efecto para evitar referencias circulares
+    const connect = () => {
+      // Limpieza preventiva
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
 
-    ws.onopen = () => {
-      setWsStatus('Conectado');
-      console.log(`WebSocket conectado (Cookie Secure): ${selectedCompetencia}`);
-    };
+      const WS_URL = `${WS_BASE_URL}/competencia/${selectedCompetencia}/`;
+      console.log(`🔌 Conectando a: ${WS_URL}`);
+      
+      if (isMounted) setWsStatus('Conectando...');
 
-    ws.onmessage = (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        
-        if (data.error) {
-           console.error("Error del servidor:", data.error);
-           return;
+      ws = new WebSocket(WS_URL);
+
+      ws.onopen = () => {
+        if (isMounted) {
+            setWsStatus('Conectado');
+            console.log('✅ WebSocket Conectado');
         }
+      };
 
-        setScores(prevScores => ({
-          ...prevScores,
-          [data.inscripcion_id]: {
-            deportista: data.deportista,
-            puntaje: data.puntaje,
-            arma: data.arma
+      ws.onmessage = (e) => {
+        try {
+          const message = JSON.parse(e.data);
+          
+          if (message.type === 'score_update' && message.payload) {
+              const data = message.payload;
+              
+              if (isMounted) {
+                setScores(prevScores => ({
+                  ...prevScores,
+                  [data.id]: {
+                    deportista: data.deportista,
+                    puntaje: data.puntaje_total,
+                    club: data.club,
+                    x_count: data.x_count
+                  }
+                }));
+              }
           }
-        }));
-      } catch (err) {
-        console.error("Error parseando mensaje WS:", err);
-      }
+        } catch (err) {
+          console.error("⚠️ Error procesando mensaje WS:", err);
+        }
+      };
+
+      ws.onclose = (e) => {
+        console.log(`🔒 WS Cerrado: ${e.code}`);
+        if (isMounted) {
+            // Si el cierre no fue normal (código 1000), intentamos reconectar
+            if (e.code !== 1000) {
+                setWsStatus('Reconectando...');
+                // Llamada recursiva segura (dentro del scope local)
+                reconnectTimeout = setTimeout(connect, 3000);
+            } else {
+                setWsStatus('Desconectado');
+            }
+        }
+      };
+
+      ws.onerror = (err) => {
+        console.error("❌ WS Error", err);
+        if (ws) ws.close(); // Forzar cierre para activar onclose y reintento
+      };
     };
 
-    ws.onclose = (e) => {
-       console.log("WS Cerrado code:", e.code);
-       if (selectedCompetencia) {
-           // Si el código es 4403 (Forbidden) u otro error de cierre...
-           setWsStatus('Desconectado'); 
-       }
-    };
+    // Iniciar conexión
+    connect();
 
-    ws.onerror = (err) => {
-      console.error("Error de WebSocket:", err);
-      setWsStatus('Error de conexión');
-    };
-
+    // Cleanup function: Se ejecuta al cambiar competencia o desmontar
     return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
+      isMounted = false;
+      if (ws) ws.close(1000); // Cierre normal
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
     };
-  }, [selectedCompetencia, isLoggedIn]); // Se re-ejecuta si cambia la competencia o el estado de login
+  }, [selectedCompetencia, isLoggedIn]); // Dependencias limpias y sencillas
 
-  const sortedScores = Object.values(scores).sort((a, b) => parseFloat(b.puntaje) - parseFloat(a.puntaje));
 
-  // Lógica visual del Badge
+  // Ordenar resultados: Mayor puntaje arriba
+  const sortedScores = Object.values(scores).sort((a, b) => {
+      const diff = parseFloat(b.puntaje) - parseFloat(a.puntaje);
+      if (diff === 0) return b.x_count - a.x_count; // Desempate por X
+      return diff;
+  });
+
+  // Lógica de UI (Badges y Loading)
   let badgeClass = 'bg-secondary';
   let statusText = wsStatus;
 
   if (loading) {
-     statusText = 'Cargando...';
-  } else if (!isLoggedIn) {
-     statusText = 'Requiere Login';
-     badgeClass = 'bg-danger';
+      statusText = 'Cargando usuario...';
+      badgeClass = 'bg-info text-dark';
   } else if (wsStatus === 'Conectado') {
-     badgeClass = 'bg-success';
-  } else if (wsStatus === 'Conectando...') {
-     badgeClass = 'bg-warning text-dark';
-  } else if (wsStatus === 'Error de conexión') {
-     badgeClass = 'bg-danger';
+      badgeClass = 'bg-success';
+  } else if (wsStatus === 'Conectando...' || wsStatus === 'Reconectando...') {
+      badgeClass = 'bg-warning text-dark';
+  } else if (wsStatus === 'Error') {
+      badgeClass = 'bg-danger';
   }
 
   return (
     <div className="container mt-4">
-      <h2 className="mb-3">Marcador en Vivo (Live Scoring)</h2>
-      
-      <div className="mb-3">
-        <strong>Estado: </strong> 
-        <span className={`badge ${badgeClass}`} style={{ fontSize: '1em' }}>
-          {statusText}
-        </span>
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <h2 className="mb-0">📡 Tablero en Vivo</h2>
+        <div>
+            <span className={`badge ${badgeClass} p-2`}>
+                {statusText === 'Conectado' ? '● EN VIVO' : statusText}
+            </span>
+        </div>
       </div>
 
-      {!isLoggedIn ? (
+      {!isLoggedIn && !loading ? (
           <div className="alert alert-warning">
-              Por favor inicia sesión para ver los resultados en vivo.
+              Debes iniciar sesión para acceder a la transmisión de datos.
           </div>
       ) : (
-        <>
-          <div className="mb-4">
-            <label className="form-label fw-bold">Seleccionar Competencia:</label>
-            <select 
-              className="form-select" 
-              onChange={handleCompetenciaChange} 
-              value={selectedCompetencia}
-            >
-              <option value="">-- Seleccione una competencia --</option>
-              {competencias.map(comp => (
-                <option key={comp.id} value={comp.id}>{comp.name}</option>
-              ))}
-            </select>
-          </div>
-
-          {selectedCompetencia && (
-            <div className="table-responsive shadow-sm rounded">
-              <table className="table table-striped table-hover mb-0">
-                <thead className="table-dark">
-                  <tr>
-                    <th>Posición</th>
-                    <th>Deportista</th>
-                    <th>Arma</th>
-                    <th className="text-end">Puntaje</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedScores.length > 0 ? (
-                    sortedScores.map((score, index) => (
-                      <tr key={index}>
-                        <td className="fw-bold text-center">{index + 1}</td>
-                        <td>{score.deportista}</td>
-                        <td>{score.arma}</td>
-                        <td className="text-end fw-bold fs-5">{score.puntaje}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan="4" className="text-center py-4 text-muted">
-                        Esperando datos en tiempo real...
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+        <div className="card shadow-sm border-0">
+          <div className="card-body bg-light">
+            <div className="mb-3">
+              <label className="form-label fw-bold text-secondary">Seleccionar Competencia:</label>
+              <select 
+                className="form-select form-select-lg" 
+                onChange={handleCompetenciaChange} 
+                value={selectedCompetencia}
+                disabled={loading}
+              >
+                <option value="">-- Seleccione para conectar --</option>
+                {competencias.map(comp => (
+                  <option key={comp.id} value={comp.id}>{comp.name}</option>
+                ))}
+              </select>
             </div>
-          )}
-        </>
+          </div>
+        </div>
+      )}
+
+      {selectedCompetencia && (
+        <div className="table-responsive mt-3 shadow rounded bg-white">
+          <table className="table table-hover align-middle mb-0">
+            <thead className="bg-dark text-white">
+              <tr>
+                <th className="py-3 ps-3">Pos</th>
+                <th className="py-3">Deportista</th>
+                <th className="py-3">Club</th>
+                <th className="py-3 text-center">X</th>
+                <th className="py-3 pe-3 text-end">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedScores.length > 0 ? (
+                sortedScores.map((score, index) => (
+                  <tr key={index} className={index === 0 ? "table-warning fw-bold" : ""}>
+                    <td className="ps-3 text-center" style={{width: '60px'}}>
+                        {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}
+                    </td>
+                    <td>{score.deportista}</td>
+                    <td className="text-muted small">{score.club}</td>
+                    <td className="text-center text-primary">{score.x_count}</td>
+                    <td className="pe-3 text-end fs-4 font-monospace text-dark">
+                        {parseFloat(score.puntaje).toFixed(2)}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="5" className="text-center py-5 text-muted">
+                    <div className="spinner-grow text-secondary mb-2" role="status" style={{width: '1rem', height: '1rem'}}></div>
+                    <p className="mb-0 small">Esperando datos en tiempo real...</p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

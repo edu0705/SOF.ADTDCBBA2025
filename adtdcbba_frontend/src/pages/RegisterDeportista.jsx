@@ -1,177 +1,240 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import inscripcionService from '../services/inscripcionService'; // Tu servicio de API
+import competenciaService from '../services/competenciaService';
 import deportistaService from '../services/deportistaService';
-import clubService from '../services/clubService';
-import { useAuth } from '../context/AuthContext';
-import { FaUserPlus, FaSave, FaHistory } from 'react-icons/fa';
+import { FaSave, FaArrowLeft, FaMoneyBillWave, FaListUl, FaUser, FaTrophy } from 'react-icons/fa';
 
-const RegisterDeportista = () => {
+const RegisterInscripcion = () => {
   const navigate = useNavigate();
-  const { user, hasRole } = useAuth();
-  
-  // Estado del formulario
-  const [formData, setFormData] = useState({
-    first_name: '',
-    apellido_paterno: '',
-    apellido_materno: '',
-    ci: '',
-    birth_date: '',
-    departamento: 'Cochabamba',
-    genero: 'M',
-    telefono: '',
-    club: '',
-    es_historico: false // NUEVO CAMPO
-  });
-
-  const [clubs, setClubs] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  
+  // Datos Auxiliares
+  const [competencias, setCompetencias] = useState([]);
+  const [deportistas, setDeportistas] = useState([]);
+  const [categoriasDisponibles, setCategoriasDisponibles] = useState([]); // Categorías de la competencia seleccionada
 
+  // Estado del Formulario
+  const [selectedCompetencia, setSelectedCompetencia] = useState(null);
+  const [selectedDeportista, setSelectedDeportista] = useState('');
+  const [selectedCategories, setSelectedCategories] = useState([]); // IDs de categorías seleccionadas
+  const [montoPagado, setMontoPagado] = useState('');
+  
+  // Estado Calculado
+  const [costoTotal, setCostoTotal] = useState(0);
+
+  // 1. Cargar Listas Iniciales
   useEffect(() => {
-    // Si es Admin, cargar lista de clubes
-    if (hasRole('Presidente')) {
-      const fetchClubs = async () => {
+    const initData = async () => {
         try {
-            const res = await clubService.getAllClubs();
-            setClubs(res.data.results || res.data);
-        } catch (err) { console.error(err); }
-      };
-      fetchClubs();
-    } else if (user.club_id) {
-        // Si es Club, asignar su propio ID automáticamente
-        setFormData(prev => ({ ...prev, club: user.club_id }));
-    }
-  }, [hasRole, user]);
+            const [resComp, resDep] = await Promise.all([
+                competenciaService.getCompetencias(),
+                deportistaService.getDeportistas()
+            ]);
+            // Filtrar solo competencias activas
+            const activeComps = (resComp.data.results || resComp.data).filter(c => c.status !== 'Finalizada');
+            setCompetencias(activeComps);
+            setDeportistas(resDep.data.results || resDep.data);
+        } catch (err) {
+            console.error("Error cargando datos:", err);
+        }
+    };
+    initData();
+  }, []);
 
-  const handleChange = (e) => {
-    const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-    setFormData({ ...formData, [e.target.name]: value });
+  // 2. Al seleccionar competencia, cargar sus categorías y costos
+  useEffect(() => {
+    if (!selectedCompetencia) {
+        setCategoriasDisponibles([]);
+        setSelectedCategories([]);
+        return;
+    }
+    
+    // Aquí deberías tener un endpoint que te de el detalle completo de la competencia con sus categorías
+    // Por ahora simulamos que 'selectedCompetencia' ya tiene un array 'categorias_detalle' o hacemos fetch
+    const fetchDetails = async () => {
+        try {
+            // Suponiendo un endpoint: /api/competencias/{id}/
+            const res = await competenciaService.getCompetenciaById(selectedCompetencia.id);
+            setCategoriasDisponibles(res.data.categorias_detalle || []); 
+        } catch (err) {
+            console.error("Error cargando detalles competencia:", err);
+        }
+    };
+    fetchDetails();
+  }, [selectedCompetencia]);
+
+  // 3. Calculadora de Costos en Vivo (Regla de Negocio Frontend)
+  useEffect(() => {
+    if (!selectedCompetencia) {
+        setCostoTotal(0);
+        return;
+    }
+
+    let total = parseFloat(selectedCompetencia.costo_inscripcion_base || 0);
+    
+    // Sumar costo de categorías seleccionadas
+    selectedCategories.forEach(catId => {
+        const cat = categoriasDisponibles.find(c => c.id === catId);
+        if (cat) total += parseFloat(cat.costo || 0);
+    });
+
+    // Aplicar Techo Máximo Global
+    const limite = parseFloat(selectedCompetencia.costo_limite_global);
+    if (limite > 0 && total > limite) {
+        total = limite;
+    }
+
+    setCostoTotal(total);
+    // Sugerir monto pagado igual al total por defecto
+    if (!montoPagado) setMontoPagado(total);
+
+  }, [selectedCompetencia, selectedCategories, categoriasDisponibles, montoPagado]);
+
+  // Manejadores
+  const handleCategoryToggle = (catId) => {
+    setSelectedCategories(prev => 
+        prev.includes(catId) ? prev.filter(id => id !== catId) : [...prev, catId]
+    );
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!selectedCompetencia || !selectedDeportista || selectedCategories.length === 0) {
+        return alert("Complete todos los campos obligatorios.");
+    }
+
     setLoading(true);
-    setError('');
-    setSuccess('');
+    const payload = {
+        competencia: selectedCompetencia.id,
+        deportista: selectedDeportista,
+        participaciones: selectedCategories.map(catId => ({ categoria: catId })), // Estructura para backend
+        monto_pagado: montoPagado,
+        estado: parseFloat(montoPagado) >= costoTotal ? 'APROBADA' : 'PENDIENTE'
+    };
 
     try {
-      // Preparamos los datos
-      const dataToSend = { ...formData };
-      
-      // Si es histórico, forzamos el estado visual
-      if (formData.es_historico) {
-          dataToSend.status = 'Pendiente de Documentación';
-      }
-
-      await deportistaService.createDeportista(dataToSend);
-      setSuccess('Deportista registrado correctamente. Puede completar los documentos luego.');
-      
-      // Limpiar formulario o redirigir
-      setTimeout(() => navigate('/admin/deportistas'), 2000);
-
+        await inscripcionService.createInscripcion(payload);
+        alert("✅ Inscripción registrada correctamente.");
+        navigate('/inscripciones');
     } catch (err) {
-      console.error(err);
-      if (err.response?.data?.ci) setError("Ya existe un deportista con este CI.");
-      else setError("Error al registrar. Verifique los datos.");
+        console.error(err);
+        alert("Error al registrar. Verifique si el deportista cumple los requisitos (Licencia/Arma).");
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
   };
 
   return (
-    <div className="container fade-in py-4">
-      <div className="card-elegant mx-auto" style={{ maxWidth: '800px' }}>
-        <div className="card-header-elegant bg-primary text-white d-flex justify-content-between align-items-center">
-          <h4 className="m-0"><FaUserPlus className="me-2"/> Registrar Deportista</h4>
-        </div>
-        
-        <div className="card-body p-4">
-          {error && <div className="alert alert-danger rounded-pill px-4">{error}</div>}
-          {success && <div className="alert alert-success rounded-pill px-4">{success}</div>}
+    <div className="container py-5 fade-in">
+      <div className="row justify-content-center">
+        <div className="col-lg-8">
+          
+          <div className="d-flex align-items-center mb-4">
+            <button onClick={() => navigate(-1)} className="btn btn-light rounded-circle shadow-sm me-3 hover-scale">
+                <FaArrowLeft className="text-muted"/>
+            </button>
+            <h2 className="fw-bold text-primary mb-0">Nueva Inscripción</h2>
+          </div>
 
-          <form onSubmit={handleSubmit}>
-            
-            {/* SECCIÓN: TIPO DE REGISTRO */}
-            <div className="mb-4 p-3 bg-light rounded-3 border border-warning">
-                <div className="form-check form-switch">
-                    <input 
-                        className="form-check-input" 
-                        type="checkbox" 
-                        id="historicoCheck"
-                        name="es_historico"
-                        checked={formData.es_historico}
-                        onChange={handleChange}
-                    />
-                    <label className="form-check-label fw-bold text-dark" htmlFor="historicoCheck">
-                        <FaHistory className="text-warning me-2"/>
-                        Registro Histórico / Incompleto
-                    </label>
-                </div>
-                <small className="text-muted d-block mt-1 ms-4">
-                    Marque esta opción para registrar datos de gestiones pasadas (2024-2025) sin exigir documentos inmediatos. 
-                    El estado será <span className="text-danger fw-bold">"Pendiente de Documentación"</span>.
-                </small>
-            </div>
-
-            <div className="row g-3">
-                {/* Datos Personales */}
-                <div className="col-md-6">
-                    <label className="form-label small text-muted">Nombres</label>
-                    <input type="text" className="form-control" name="first_name" value={formData.first_name} onChange={handleChange} required />
-                </div>
-                <div className="col-md-6">
-                    <label className="form-label small text-muted">Apellido Paterno</label>
-                    <input type="text" className="form-control" name="apellido_paterno" value={formData.apellido_paterno} onChange={handleChange} required />
-                </div>
-                <div className="col-md-6">
-                    <label className="form-label small text-muted">Apellido Materno</label>
-                    <input type="text" className="form-control" name="apellido_materno" value={formData.apellido_materno} onChange={handleChange} />
-                </div>
+          <div className="card-modern border-0 shadow-lg overflow-hidden">
+            <div className="card-body p-5">
+              <form onSubmit={handleSubmit}>
                 
-                <div className="col-md-6">
-                    <label className="form-label small text-muted">CI / DNI</label>
-                    <input type="text" className="form-control" name="ci" value={formData.ci} onChange={handleChange} required />
+                {/* 1. SELECCIÓN DE COMPETENCIA */}
+                <div className="mb-4">
+                    <label className="form-label fw-bold text-secondary"><FaTrophy className="me-2"/> Competencia</label>
+                    <select 
+                        className="form-select form-select-lg bg-light border-0" 
+                        onChange={(e) => {
+                            const comp = competencias.find(c => c.id.toString() === e.target.value);
+                            setSelectedCompetencia(comp);
+                        }}
+                    >
+                        <option value="">-- Seleccione Evento --</option>
+                        {competencias.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    {selectedCompetencia?.costo_limite_global > 0 && (
+                        <div className="form-text text-success fw-bold">
+                            <FaMoneyBillWave className="me-1"/> ¡Esta competencia tiene un costo máximo de {selectedCompetencia.costo_limite_global} Bs!
+                        </div>
+                    )}
                 </div>
 
-                <div className="col-md-6">
-                    <label className="form-label small text-muted">Fecha Nacimiento</label>
-                    <input type="date" className="form-control" name="birth_date" value={formData.birth_date} onChange={handleChange} required />
-                </div>
-
-                <div className="col-md-6">
-                    <label className="form-label small text-muted">Género</label>
-                    <select className="form-select" name="genero" value={formData.genero} onChange={handleChange}>
-                        <option value="M">Masculino</option>
-                        <option value="F">Femenino</option>
+                {/* 2. SELECCIÓN DE DEPORTISTA */}
+                <div className="mb-4">
+                    <label className="form-label fw-bold text-secondary"><FaUser className="me-2"/> Deportista</label>
+                    <select 
+                        className="form-select bg-light border-0" 
+                        value={selectedDeportista}
+                        onChange={(e) => setSelectedDeportista(e.target.value)}
+                    >
+                        <option value="">-- Buscar Deportista --</option>
+                        {deportistas.map(d => (
+                            <option key={d.id} value={d.id}>{d.first_name} {d.apellido_paterno} ({d.ci})</option>
+                        ))}
                     </select>
                 </div>
 
-                {/* Selección de Club (Solo para Admin) */}
-                {hasRole('Presidente') && (
-                    <div className="col-12">
-                        <label className="form-label small text-muted">Club Pertenencia</label>
-                        <select className="form-select" name="club" value={formData.club} onChange={handleChange} required>
-                            <option value="">-- Seleccione Club --</option>
-                            {clubs.map(c => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
-                            ))}
-                        </select>
+                {/* 3. SELECCIÓN DE CATEGORÍAS */}
+                {selectedCompetencia && (
+                    <div className="mb-4 animate-slide-up">
+                        <label className="form-label fw-bold text-secondary"><FaListUl className="me-2"/> Modalidades y Categorías</label>
+                        <div className="card border-0 bg-light p-3">
+                            <div className="row g-2">
+                                {categoriasDisponibles.length > 0 ? categoriasDisponibles.map(cat => (
+                                    <div key={cat.id} className="col-md-6">
+                                        <div 
+                                            className={`p-3 rounded border cursor-pointer transition-all ${selectedCategories.includes(cat.id) ? 'bg-primary text-white border-primary shadow-sm' : 'bg-white border-light hover-bg-gray'}`}
+                                            onClick={() => handleCategoryToggle(cat.id)}
+                                        >
+                                            <div className="d-flex justify-content-between align-items-center">
+                                                <span className="fw-bold">{cat.modalidad_nombre} - {cat.name}</span>
+                                                <span className={`badge ${selectedCategories.includes(cat.id) ? 'bg-white text-primary' : 'bg-secondary'}`}>
+                                                    {cat.costo} Bs
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )) : <p className="text-muted small">Cargando categorías...</p>}
+                            </div>
+                        </div>
                     </div>
                 )}
-            </div>
 
-            <div className="mt-5 d-flex justify-content-end gap-2">
-                <button type="button" className="btn btn-light rounded-pill px-4" onClick={() => navigate(-1)}>Cancelar</button>
-                <button type="submit" className="btn btn-primary rounded-pill px-4 shadow-sm" disabled={loading}>
-                    {loading ? 'Guardando...' : <><FaSave className="me-2"/> Registrar</>}
-                </button>
+                {/* 4. RESUMEN DE PAGOS */}
+                <div className="card bg-primary bg-opacity-10 border-0 p-4 mb-4">
+                    <div className="d-flex justify-content-between align-items-center mb-3">
+                        <h5 className="mb-0 fw-bold text-primary">Total a Pagar</h5>
+                        <h3 className="mb-0 fw-bold text-dark">{costoTotal} Bs</h3>
+                    </div>
+                    <div className="form-floating">
+                        <input 
+                            type="number" 
+                            className="form-control border-0 fw-bold" 
+                            id="montoPagado" 
+                            placeholder="Monto"
+                            value={montoPagado}
+                            onChange={(e) => setMontoPagado(e.target.value)}
+                        />
+                        <label htmlFor="montoPagado">Monto Cancelado Ahora (Bs)</label>
+                    </div>
+                </div>
+
+                <div className="d-flex justify-content-end gap-3">
+                    <button type="button" onClick={() => navigate(-1)} className="btn btn-light rounded-pill px-4 fw-bold">Cancelar</button>
+                    <button type="submit" className="btn btn-success rounded-pill px-5 fw-bold shadow-lg hover-lift" disabled={loading}>
+                        {loading ? 'Procesando...' : <><FaSave className="me-2"/> Confirmar Inscripción</>}
+                    </button>
+                </div>
+
+              </form>
             </div>
-          </form>
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-export default RegisterDeportista;
+export default RegisterInscripcion;
