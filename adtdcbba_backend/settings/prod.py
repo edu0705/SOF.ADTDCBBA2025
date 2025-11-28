@@ -1,27 +1,37 @@
 from .base import *
 
-# MODO PRODUCCIÓN: SEGURO
+# MODO PRODUCCIÓN: Siempre False
 DEBUG = False
 
+# Host permitidos (leídos de .env)
 ALLOWED_HOSTS = env.list('DJANGO_ALLOWED_HOSTS', default=['midominio.com', 'localhost'])
 
-# Base de Datos PostgreSQL (OBLIGATORIO EN PROD)
+# Base de Datos PostgreSQL
 DATABASES = {
     'default': env.db('DATABASE_URL')
 }
 
-# CORS Restrictivo
-CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=['https://midominio.com'])
-CORS_ALLOW_CREDENTIALS = True
+# --- SEGURIDAD HTTP (SSL/HTTPS) ---
+# IMPORTANTE: Descomenta las siguientes 3 líneas SOLO cuando tengas un dominio real (https://...)
+# y certificado SSL instalado. Si las activas en localhost, el login fallará.
 
-# Seguridad HTTP
-SECURE_SSL_REDIRECT = True
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
+# SECURE_SSL_REDIRECT = True
+# SESSION_COOKIE_SECURE = True
+# CSRF_COOKIE_SECURE = True
+
+# Estos filtros sí se pueden dejar activos siempre
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 
-# Channels con Redis (Producción)
+# --- CORS & CSRF ---
+CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=['https://midominio.com'])
+CORS_ALLOW_CREDENTIALS = True
+
+# ¡CRÍTICO PARA NGINX!
+# Django necesita saber que confía en el dominio que le envía la petición a través del proxy.
+CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=['https://midominio.com'])
+
+# Channels con Redis
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
@@ -31,4 +41,4 @@ CHANNEL_LAYERS = {
     },
 }
 
-print("🛡️ CARGADA CONFIGURACIÓN: PRODUCCIÓN")
+print("🛡️ CARGADA CONFIGURACIÓN: PRODUCCIÓN (Docker Ready)")

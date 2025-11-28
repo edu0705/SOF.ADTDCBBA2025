@@ -1,129 +1,59 @@
-import React, { useState, useEffect } from 'react';
-import competenciaService from '../services/competenciaService';
-import { FaTrophy, FaCalendarAlt, FaPrint, FaStar } from 'react-icons/fa'; // <-- CORREGIDO (Quitada FaMedal)
+/* eslint-disable */
+import React from 'react';
+import { motion } from 'framer-motion';
+import { Trophy, Crown, TrendingUp } from 'lucide-react';
 
 const AnnualRanking = () => {
-  const currentYear = new Date().getFullYear();
-  const [year, setYear] = useState(currentYear);
-  const [rankingData, setRankingData] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchRanking = async () => {
-      setLoading(true);
-      try {
-        const res = await competenciaService.getAnnualRanking(year);
-        setRankingData(res.data.rankings_por_modalidad);
-      } catch (err) {
-        console.error("Error al cargar ranking", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchRanking();
-  }, [year]);
-
-  const renderBadge = (pos) => {
-    if (pos === 1) return <div className="d-flex align-items-center justify-content-center bg-warning text-white rounded-circle shadow-sm" style={{width: '35px', height: '35px'}}><FaStar/></div>;
-    if (pos === 2) return <div className="d-flex align-items-center justify-content-center bg-secondary text-white rounded-circle shadow-sm" style={{width: '35px', height: '35px'}}>2</div>;
-    if (pos === 3) return <div className="d-flex align-items-center justify-content-center bg-brown text-white rounded-circle shadow-sm" style={{width: '35px', height: '35px', backgroundColor: '#CD7F32'}}>3</div>;
-    return <span className="text-muted fw-bold ps-2">#{pos}</span>;
-  };
+  const ranking = [
+    { id: 1, nombre: "Carlos Mamani", club: "CTT", puntos: 450, competencias: 5 },
+    { id: 2, nombre: "Jorge Vargas", club: "CTI", puntos: 420, competencias: 5 },
+    { id: 3, nombre: "Ana Torrez", club: "CTI", puntos: 380, competencias: 4 },
+  ];
 
   return (
-    <div className="container fade-in pb-5">
-      <div className="d-flex flex-column flex-md-row justify-content-between align-items-center mb-5 gap-3">
-        <div>
-            <h2 className="fw-bold text-dark mb-1">🏆 Ranking General Anual</h2>
-            <p className="text-muted mb-0">Tabla de posiciones acumulada - Temporada {year}</p>
+    <div className="min-h-screen bg-slate-50 p-6 md:p-10 font-sans">
+      <div className="max-w-5xl mx-auto space-y-8">
+        <div className="text-center py-10">
+          <div className="inline-block p-4 bg-yellow-100 rounded-full text-yellow-600 mb-4 shadow-lg shadow-yellow-500/20">
+            <Trophy size={40} />
+          </div>
+          <h1 className="text-4xl font-black text-slate-900 tracking-tight">Ranking Anual 2025</h1>
+          <p className="text-slate-500 mt-2 text-lg">Mejores tiradores de la gestión</p>
         </div>
-        
-        <div className="d-flex gap-3 bg-white p-2 rounded-pill shadow-sm border">
-            <div className="input-group border-0" style={{width: '140px'}}>
-                <span className="input-group-text bg-transparent border-0 ps-3"><FaCalendarAlt className="text-primary"/></span>
-                <input 
-                    type="number" 
-                    className="form-control border-0 fw-bold text-primary" 
-                    value={year} 
-                    onChange={(e) => setYear(e.target.value)}
-                    min="2020" max="2030"
-                />
-            </div>
-            <button className="btn btn-dark rounded-pill px-4" onClick={() => window.print()}>
-                <FaPrint/>
-            </button>
+
+        <div className="grid gap-4">
+          {ranking.map((atleta, i) => (
+            <motion.div 
+              key={atleta.id}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: i * 0.1 }}
+              className={`flex items-center p-6 rounded-3xl border shadow-sm transition-all hover:shadow-md
+                ${i === 0 ? 'bg-gradient-to-r from-yellow-50 to-white border-yellow-200' : 'bg-white border-slate-100'}`}
+            >
+              <div className={`w-12 h-12 flex items-center justify-center rounded-2xl font-black text-xl mr-6
+                ${i === 0 ? 'bg-yellow-500 text-white shadow-lg shadow-yellow-500/40' : 
+                  i === 1 ? 'bg-slate-400 text-white' : 
+                  i === 2 ? 'bg-orange-400 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                {i + 1}
+              </div>
+              
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xl font-bold text-slate-800">{atleta.nombre}</h3>
+                  {i === 0 && <Crown size={18} className="text-yellow-500 fill-yellow-500" />}
+                </div>
+                <p className="text-slate-500 text-sm font-medium">{atleta.club}</p>
+              </div>
+
+              <div className="text-right">
+                <p className="text-3xl font-black text-slate-900">{atleta.puntos}</p>
+                <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">Puntos</p>
+              </div>
+            </motion.div>
+          ))}
         </div>
       </div>
-
-      {loading ? (
-        <div className="text-center py-5">
-            <div className="spinner-border text-primary" role="status"></div>
-            <p className="mt-3 text-muted fw-bold">Calculando posiciones...</p>
-        </div>
-      ) : (
-        <>
-            {rankingData.length === 0 ? (
-                <div className="alert alert-light border text-center rounded-4 p-5">
-                    <h4 className="text-muted">No hay datos para el año {year}</h4>
-                    <p className="mb-0">Asegúrate de que haya competencias en estado <strong>"Finalizada"</strong>.</p>
-                </div>
-            ) : (
-                <div className="row">
-                    {rankingData.map((mod, idx) => (
-                        <div key={idx} className="col-xl-6 mb-4">
-                            <div className="card border-0 shadow-sm h-100 overflow-hidden" style={{borderRadius: '15px'}}>
-                                
-                                <div className="card-header bg-white border-bottom py-3 px-4 d-flex justify-content-between align-items-center">
-                                    <div className="d-flex align-items-center gap-2">
-                                        <div className="bg-primary bg-opacity-10 p-2 rounded text-primary">
-                                            <FaTrophy/>
-                                        </div>
-                                        <h5 className="fw-bold m-0 text-dark">{mod.modalidad}</h5>
-                                    </div>
-                                    <span className="badge bg-light text-dark border rounded-pill px-3">Oficial</span>
-                                </div>
-
-                                <div className="card-body p-0">
-                                    <div className="table-responsive">
-                                        <table className="table table-hover mb-0 align-middle">
-                                            <thead className="bg-light small text-uppercase text-muted">
-                                                <tr>
-                                                    <th className="ps-4 py-3">Pos</th>
-                                                    <th className="py-3">Deportista</th>
-                                                    <th className="py-3">Club</th>
-                                                    <th className="text-center py-3">Eventos</th>
-                                                    <th className="text-end pe-4 py-3">Total Puntos</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {mod.ranking.map((row, rIdx) => (
-                                                    <tr key={rIdx} className={rIdx === 0 ? 'bg-warning bg-opacity-10' : ''}>
-                                                        <td className="ps-4">{renderBadge(row.posicion)}</td>
-                                                        <td>
-                                                            <div className="fw-bold text-dark">{row.deportista}</div>
-                                                        </td>
-                                                        <td className="text-muted small">{row.club}</td>
-                                                        <td className="text-center">
-                                                            <span className="badge bg-secondary bg-opacity-10 text-secondary rounded-pill px-2">
-                                                                {row.eventos_disputados}
-                                                            </span>
-                                                        </td>
-                                                        <td className="text-end pe-4">
-                                                            <span className="fw-bold fs-5 text-primary">{row.puntaje_total}</span>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
-        </>
-      )}
     </div>
   );
 };

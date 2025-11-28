@@ -1,191 +1,111 @@
-import React, { useState, useEffect } from 'react';
+/* eslint-disable */
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { Calendar, MapPin, Save, ArrowLeft, Loader2, Target, DollarSign } from 'lucide-react';
 import competenciaService from '../services/competenciaService';
-import { FaTrophy, FaCalendarAlt, FaMapMarkerAlt, FaSave, FaArrowLeft, FaMoneyBillWave } from 'react-icons/fa';
 
 const CreateCompetencia = () => {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
+  const queryClient = useQueryClient();
   
-  // Estados para selectores
-  const [poligonos, setPoligonos] = useState([]);
-
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    start_date: '',
-    end_date: '',
-    hora_competencia: '08:00',
-    poligono: '',
-    type: 'Departamental',
-    status: 'Próxima',
-    costo_inscripcion_base: '0',
-    costo_limite_global: '',
-    numero_convocatoria: '',
-    categorias: [], 
-    jueces: [] 
+  const [form, setForm] = useState({ 
+    name: '', 
+    start_date: '', 
+    poligono: '', 
+    status: 'Abierta',
+    costo_inscripcion_base: 0
   });
 
-  useEffect(() => {
-    const loadAuxData = async () => {
-      try {
-        // Mockup temporal (Aquí conectarías con tu API de polígonos)
-        setPoligonos([{id: 1, name: 'Polígono Santiváñez'}, {id: 2, name: 'Polígono Escuela Naval'}]);
-      } catch (err) {
-        console.error("Error cargando datos auxiliares", err);
-      }
-    };
-    loadAuxData();
-  }, []);
+  // 1. Cargar Polígonos desde la BD
+  const { data: poligonos = [], isLoading: loadingPoly } = useQuery({
+    queryKey: ['poligonos'],
+    queryFn: competenciaService.getPoligonos
+  });
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
+  // 2. Mutación de guardado
+  const crearCompetencia = useMutation({
+    mutationFn: competenciaService.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries(['competencias']);
+      navigate('/admin/competencias');
+    },
+    onError: () => alert("Error al crear la competencia. Verifique los datos.")
+  });
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    setLoading(true);
-    try {
-      await competenciaService.createCompetencia(formData);
-      alert("✅ Competencia creada exitosamente.");
-      navigate('/competencias');
-    } catch (err) {
-      console.error(err);
-      alert("Error al crear competencia. Revise los campos obligatorios.");
-    } finally {
-      setLoading(false);
-    }
+    crearCompetencia.mutate(form);
   };
 
   return (
-    <div className="container py-5 fade-in">
-      <div className="row justify-content-center">
-        <div className="col-lg-10">
-          
-          {/* HEADER */}
-          <div className="d-flex align-items-center mb-4">
-            <button onClick={() => navigate(-1)} className="btn btn-light rounded-circle shadow-sm me-3 hover-scale">
-                <FaArrowLeft className="text-muted"/>
-            </button>
-            <div>
-                <h2 className="fw-bold text-primary mb-0">Nueva Competencia</h2>
-                <p className="text-muted small mb-0">Configure los parámetros del evento oficial.</p>
+    <div className="max-w-3xl mx-auto pb-10">
+      <motion.button 
+        whileHover={{ x: -5 }}
+        onClick={() => navigate(-1)}
+        className="flex items-center gap-2 text-slate-500 hover:text-slate-800 mb-6 font-medium"
+      >
+        <ArrowLeft size={18} /> Volver
+      </motion.button>
+
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-3xl shadow-xl border border-slate-100 p-8">
+        <div className="flex items-center gap-4 mb-8">
+          <div className="p-3 bg-blue-100 text-blue-600 rounded-xl"><Target size={28} /></div>
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800">Nueva Convocatoria</h2>
+            <p className="text-slate-500 text-sm">Configura el evento oficial.</p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-slate-700 ml-1">Nombre del Evento</label>
+            <input required type="text" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 outline-none" 
+              value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Ej. Campeonato Nacional Apertura" />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700 ml-1">Fecha de Inicio</label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <input required type="date" className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 outline-none text-slate-600" 
+                  value={form.start_date} onChange={e => setForm({...form, start_date: e.target.value})} />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700 ml-1">Sede / Polígono</label>
+              <div className="relative">
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <select required className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 outline-none text-slate-600 appearance-none" 
+                  value={form.poligono} onChange={e => setForm({...form, poligono: e.target.value})}>
+                  <option value="">Seleccionar Sede...</option>
+                  {poligonos.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              {loadingPoly && <p className="text-xs text-blue-500 ml-1">Cargando sedes...</p>}
             </div>
           </div>
 
-          <form onSubmit={handleSubmit}>
-            <div className="row g-4">
-                
-                {/* COLUMNA IZQUIERDA: DATOS PRINCIPALES */}
-                <div className="col-md-8">
-                    <div className="card-modern border-0 shadow-sm mb-4">
-                        <div className="card-header bg-white border-bottom p-4">
-                            <h6 className="text-primary fw-bold mb-0 d-flex align-items-center">
-                                <FaTrophy className="me-2"/> Información del Evento
-                            </h6>
-                        </div>
-                        <div className="card-body p-4">
-                            <div className="mb-3">
-                                <label className="form-label small fw-bold text-muted">Nombre del Evento *</label>
-                                <input name="name" className="form-control form-control-lg bg-light border-0" placeholder="Ej: 3ra Fecha Departamental FBI" onChange={handleChange} required />
-                            </div>
-                            <div className="row g-3 mb-3">
-                                <div className="col-md-6">
-                                    <label className="form-label small fw-bold text-muted">Tipo</label>
-                                    <select name="type" className="form-select bg-light border-0" onChange={handleChange}>
-                                        <option value="Departamental">Departamental</option>
-                                        <option value="Nacional">Nacional</option>
-                                        <option value="Interno">Interno</option>
-                                    </select>
-                                </div>
-                                <div className="col-md-6">
-                                    <label className="form-label small fw-bold text-muted">Nro. Convocatoria</label>
-                                    <input name="numero_convocatoria" className="form-control bg-light border-0" onChange={handleChange} />
-                                </div>
-                            </div>
-                            <div className="mb-3">
-                                <label className="form-label small fw-bold text-muted">Descripción / Notas</label>
-                                <textarea name="description" className="form-control bg-light border-0" rows="3" onChange={handleChange}></textarea>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="card-modern border-0 shadow-sm">
-                        <div className="card-header bg-white border-bottom p-4">
-                            <h6 className="text-success fw-bold mb-0 d-flex align-items-center">
-                                <FaMoneyBillWave className="me-2"/> Costos y Reglas
-                            </h6>
-                        </div>
-                        <div className="card-body p-4">
-                            <div className="alert alert-light border-start border-4 border-success small text-muted">
-                                Defina los costos base. Si establece un <strong>Costo Máximo Global</strong>, el sistema ajustará automáticamente el total a pagar de los deportistas para no exceder ese monto.
-                            </div>
-                            <div className="row g-3">
-                                <div className="col-md-6">
-                                    <label className="form-label small fw-bold text-muted">Costo Inscripción Base (Bs)</label>
-                                    <input type="number" name="costo_inscripcion_base" className="form-control bg-light border-0 fw-bold" defaultValue="0" onChange={handleChange} />
-                                </div>
-                                <div className="col-md-6">
-                                    <label className="form-label small fw-bold text-success">Costo Máximo Global (Bs)</label>
-                                    <input type="number" name="costo_limite_global" className="form-control border-success bg-success bg-opacity-10 fw-bold text-success" placeholder="Opcional (Ej: 100)" onChange={handleChange} />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* COLUMNA DERECHA: FECHAS Y UBICACIÓN */}
-                <div className="col-md-4">
-                    <div className="card-modern border-0 shadow-sm mb-4">
-                        <div className="card-header bg-white border-bottom p-4">
-                            <h6 className="text-warning fw-bold mb-0 d-flex align-items-center text-dark">
-                                <FaCalendarAlt className="me-2 text-warning"/> Agenda
-                            </h6>
-                        </div>
-                        <div className="card-body p-4">
-                            <div className="mb-3">
-                                <label className="form-label small fw-bold text-muted">Fecha Inicio *</label>
-                                <input type="date" name="start_date" className="form-control bg-light border-0" onChange={handleChange} required />
-                            </div>
-                            <div className="mb-3">
-                                <label className="form-label small fw-bold text-muted">Fecha Fin *</label>
-                                <input type="date" name="end_date" className="form-control bg-light border-0" onChange={handleChange} required />
-                            </div>
-                            <div className="mb-3">
-                                <label className="form-label small fw-bold text-muted">Hora Inicio</label>
-                                <input type="time" name="hora_competencia" className="form-control bg-light border-0" defaultValue="08:00" onChange={handleChange} />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="card-modern border-0 shadow-sm mb-4">
-                        <div className="card-header bg-white border-bottom p-4">
-                            <h6 className="text-danger fw-bold mb-0 d-flex align-items-center">
-                                <FaMapMarkerAlt className="me-2"/> Ubicación
-                            </h6>
-                        </div>
-                        <div className="card-body p-4">
-                            <label className="form-label small fw-bold text-muted">Polígono Oficial</label>
-                            <select name="poligono" className="form-select bg-light border-0" onChange={handleChange} required>
-                                <option value="">-- Seleccione --</option>
-                                {poligonos.map(p => (
-                                    <option key={p.id} value={p.id}>{p.name}</option>
-                                ))}
-                            </select>
-                        </div>
-                    </div>
-
-                    <button type="submit" className="btn btn-primary w-100 py-3 rounded-pill fw-bold shadow-lg hover-lift" disabled={loading}>
-                        {loading ? 'Guardando...' : <><FaSave className="me-2"/> Crear Competencia</>}
-                    </button>
-                </div>
-
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-slate-700 ml-1">Costo de Inscripción (Base)</label>
+            <div className="relative">
+              <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <input type="number" className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 outline-none" 
+                value={form.costo_inscripcion_base} onChange={e => setForm({...form, costo_inscripcion_base: e.target.value})} placeholder="0.00" />
             </div>
-          </form>
+          </div>
 
-        </div>
-      </div>
+          <div className="pt-6 border-t border-slate-100 flex gap-4">
+            <button type="button" onClick={() => navigate(-1)} className="px-6 py-3.5 border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button type="submit" disabled={crearCompetencia.isPending} className="flex-1 px-6 py-3.5 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 shadow-xl transition-all active:scale-95 flex justify-center gap-2">
+              {crearCompetencia.isPending ? <Loader2 className="animate-spin" /> : <><Save size={20} /> Publicar Convocatoria</>}
+            </button>
+          </div>
+        </form>
+      </motion.div>
     </div>
   );
 };

@@ -1,41 +1,75 @@
 services:
-  # Base de Datos PostgreSQL
-  # Puerto Interno: 5432 (Estándar)
-  # Puerto Externo: 5433 (Para evitar conflicto con tu PC)
+  # --- Base de Datos ---
   db:
     image: postgres:15-alpine
     container_name: adtdcbba_db
     restart: always
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    environment:
-      - POSTGRES_DB=adtdcbba_db
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-    ports:
-      - "5433:5432"
+    env_file:
+      - .env
     networks:
-      - adtdcbba_net
+      - app_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  # Redis (Cache y WebSockets)
-  # Puerto Externo: 6380
+  # --- Redis ---
   redis:
     image: redis:7-alpine
     container_name: adtdcbba_redis
     restart: always
-    ports:
-      - "6380:6379"
     networks:
-      - adtdcbba_net
+      - app_network
+
+  # --- Backend (Django) ---
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: adtdcbba_backend
+    restart: always
+    command: /app/entrypoint.sh
+    volumes:
+      - ./:/app
+      # Aquí Django GUARDA los archivos (La "Caja")
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - app_network
+
+  # --- Frontend (Nginx + React) ---
+  frontend:
+    build:
+      context: ./adtdcbba_frontend
+      dockerfile: Dockerfile
+    container_name: adtdcbba_frontend
+    restart: always
+    ports:
+      - "80:80"
+    # ¡ESTO FALTABA! Le damos acceso a Nginx para leer la "Caja"
+    volumes:
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    depends_on:
+      - backend
+    networks:
+      - app_network
 
 networks:
-  adtdcbba_net:
+  app_network:
     driver: bridge
 
 volumes:
   postgres_data:
+  static_volume:
+  media_volume:

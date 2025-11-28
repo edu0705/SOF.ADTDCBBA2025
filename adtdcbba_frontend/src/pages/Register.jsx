@@ -1,82 +1,160 @@
+/* eslint-disable */
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import authService from '../services/authService';
-import { FaShieldAlt, FaUser, FaLock, FaSave } from 'react-icons/fa'; // <-- FaBuilding ELIMINADO
+import { Link, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { UserPlus, User, Mail, Lock, ArrowRight, CheckCircle, Loader2, Shield } from 'lucide-react';
+import api from '../config/api';
+// Usa tu logo o el ícono por defecto
+import logo from '../assets/logo.svg';
 
 const Register = () => {
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    username: '',
-    email: '',
-    password: '',
-    name: '', // Nombre del Club
-    presidente_club: '',
-    numero_licencia: ''
+    username: '', email: '', password: '', confirmPassword: '', first_name: '', last_name: ''
   });
-
-  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
+    
+    if (formData.password !== formData.confirmPassword) {
+      setError("Las contraseñas no coinciden.");
+      return;
+    }
+
+    setLoading(true);
     try {
-      await authService.registerClub(formData);
-      alert("Club registrado exitosamente.");
-      navigate('/admin/clubs');
+      // Ajusta el endpoint según tu backend real
+      await api.post('/users/register/', formData);
+      navigate('/login');
     } catch (err) {
-      alert("Error al registrar. Verifique si el usuario o club ya existe.");
+      setError("Error al registrar. Verifique los datos o intente más tarde.");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="container fade-in py-5">
-      <div className="card-elegant mx-auto" style={{ maxWidth: '600px' }}>
-        <div className="card-header-elegant bg-primary text-white text-center py-4">
-            <FaShieldAlt size={40} className="mb-2"/>
-            <h3 className="m-0 fw-bold">Registrar Nuevo Club</h3>
-            <p className="opacity-75 m-0">Creación de cuenta institucional</p>
-        </div>
+    <div className="flex min-h-screen bg-white font-sans overflow-hidden">
+      
+      {/* SECCIÓN IZQUIERDA (Visual) */}
+      <motion.div 
+        initial={{ opacity: 0, x: -50 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.8 }}
+        className="hidden lg:flex w-5/12 bg-slate-900 relative items-center justify-center overflow-hidden"
+      >
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-900/40 to-slate-900 z-10" />
+        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-[120px]" />
         
-        <div className="card-body p-5">
-            <form onSubmit={handleSubmit}>
-                <h6 className="text-primary border-bottom pb-2 mb-3 text-uppercase small fw-bold">Datos de Acceso</h6>
-                <div className="row g-3 mb-4">
-                    <div className="col-12">
-                        <div className="input-group">
-                            <span className="input-group-text bg-light border-end-0"><FaUser className="text-muted"/></span>
-                            <input type="text" className="form-control border-start-0" name="username" placeholder="Usuario (Ej: clubtunari)" onChange={handleChange} required/>
-                        </div>
-                    </div>
-                    <div className="col-12">
-                        <div className="input-group">
-                            <span className="input-group-text bg-light border-end-0"><FaLock className="text-muted"/></span>
-                            <input type="password" className="form-control border-start-0" name="password" placeholder="Contraseña" onChange={handleChange} required/>
-                        </div>
-                    </div>
-                </div>
-
-                <h6 className="text-primary border-bottom pb-2 mb-3 text-uppercase small fw-bold">Información del Club</h6>
-                <div className="row g-3 mb-4">
-                    <div className="col-12">
-                        <label className="form-label small fw-bold">Nombre del Club</label>
-                        <input type="text" className="form-control" name="name" onChange={handleChange} required/>
-                    </div>
-                    <div className="col-md-6">
-                        <label className="form-label small fw-bold">Presidente</label>
-                        <input type="text" className="form-control" name="presidente_club" onChange={handleChange} required/>
-                    </div>
-                    <div className="col-md-6">
-                        <label className="form-label small fw-bold">Nro. Licencia (Personería)</label>
-                        <input type="text" className="form-control" name="numero_licencia" onChange={handleChange}/>
-                    </div>
-                </div>
-
-                <div className="d-grid">
-                    <button type="submit" className="btn btn-success rounded-pill py-2 fw-bold shadow-sm hover-scale">
-                        <FaSave className="me-2"/> Registrar Club
-                    </button>
-                </div>
-            </form>
+        <div className="relative z-20 px-12 text-center">
+          <div className="mb-8 inline-flex p-4 bg-white/5 rounded-3xl backdrop-blur-md border border-white/10 shadow-2xl">
+            <UserPlus size={48} className="text-blue-400" />
+          </div>
+          <h1 className="text-4xl font-bold text-white mb-6">Únete a la Élite</h1>
+          <p className="text-slate-400 text-lg leading-relaxed">
+            Crea tu cuenta para gestionar tus inscripciones, ver tu historial de tiro y recibir certificaciones oficiales.
+          </p>
+          
+          <div className="mt-12 space-y-4 text-left">
+            <div className="flex items-center gap-4 p-4 bg-slate-800/50 rounded-2xl border border-slate-700">
+              <CheckCircle className="text-emerald-500 shrink-0" />
+              <span className="text-slate-300 text-sm">Historial de puntajes y ranking nacional</span>
+            </div>
+            <div className="flex items-center gap-4 p-4 bg-slate-800/50 rounded-2xl border border-slate-700">
+              <CheckCircle className="text-emerald-500 shrink-0" />
+              <span className="text-slate-300 text-sm">Inscripciones rápidas a competencias</span>
+            </div>
+          </div>
         </div>
+      </motion.div>
+
+      {/* SECCIÓN DERECHA (Formulario) */}
+      <div className="w-full lg:w-7/12 flex items-center justify-center p-8 bg-slate-50">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-xl bg-white p-10 rounded-3xl shadow-xl shadow-slate-200/60 border border-white"
+        >
+          <div className="text-center mb-10">
+            <h2 className="text-3xl font-bold text-slate-900">Crear Cuenta</h2>
+            <p className="text-slate-500 mt-2">Completa tus datos personales</p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="grid grid-cols-2 gap-5">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Nombre</label>
+                <input type="text" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all" placeholder="Juan" required 
+                  onChange={e => setFormData({...formData, first_name: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Apellido</label>
+                <input type="text" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all" placeholder="Pérez" required 
+                  onChange={e => setFormData({...formData, last_name: e.target.value})}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Correo Electrónico</label>
+              <div className="relative">
+                <Mail className="absolute left-4 top-3.5 text-slate-400" size={20} />
+                <input type="email" className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all" placeholder="juan@ejemplo.com" required 
+                  onChange={e => setFormData({...formData, email: e.target.value})}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Usuario</label>
+              <div className="relative">
+                <User className="absolute left-4 top-3.5 text-slate-400" size={20} />
+                <input type="text" className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all" placeholder="juan.perez" required 
+                  onChange={e => setFormData({...formData, username: e.target.value})}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-5">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Contraseña</label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-3.5 text-slate-400" size={20} />
+                  <input type="password" className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all" placeholder="••••••" required 
+                    onChange={e => setFormData({...formData, password: e.target.value})}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Confirmar</label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-3.5 text-slate-400" size={20} />
+                  <input type="password" className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500/20 outline-none transition-all" placeholder="••••••" required 
+                    onChange={e => setFormData({...formData, confirmPassword: e.target.value})}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {error && (
+              <p className="text-sm text-red-600 bg-red-50 p-3 rounded-lg border border-red-100 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 bg-red-500 rounded-full"/> {error}
+              </p>
+            )}
+
+            <button type="submit" disabled={loading} className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-600/30 transition-all active:scale-95 flex justify-center gap-2 disabled:opacity-70">
+              {loading ? <Loader2 className="animate-spin" /> : <>Registrarme <ArrowRight size={20} /></>}
+            </button>
+          </form>
+
+          <p className="text-center mt-8 text-slate-500 text-sm">
+            ¿Ya tienes cuenta? <Link to="/login" className="text-blue-600 font-bold hover:underline">Inicia Sesión</Link>
+          </p>
+        </motion.div>
       </div>
     </div>
   );

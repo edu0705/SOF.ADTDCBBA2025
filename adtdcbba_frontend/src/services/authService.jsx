@@ -1,57 +1,38 @@
-// src/services/authService.jsx
 import api from '../config/api';
 
 const authService = {
-    // Login: Envía usuario y contraseña.
-    // ACTUALIZADO: Apunta a /users/token/ para coincidir con el backend
+    // 1. LOGIN
+    // Antes: /users/token/
+    // Ahora: /auth/login/ (Definido en users/urls.py)
     login: async (username, password) => {
-        const response = await api.post('/users/token/', { username, password });
+        const response = await api.post('/auth/login/', { username, password });
         return response.data;
     },
 
-    // Logout: Llama al endpoint para que el servidor elimine las cookies.
-    // ACTUALIZADO: Apunta a /users/token/logout/
+    // 2. LOGOUT
+    // Antes: /users/token/logout/
+    // Ahora: /auth/logout/
     logout: async () => {
         try {
-            await api.post('/users/token/logout/');
+            await api.post('/auth/logout/');
         } catch (error) {
             console.error("Error al cerrar sesión en servidor", error);
         }
     },
 
-    // GET CURRENT USER: Verifica si la cookie de sesión es válida.
-    // Este ya estaba correcto (/users/user-info/)
+    // 3. OBTENER USUARIO ACTUAL
+    // Antes: /users/user-info/
+    // Ahora: /auth/me/
     getCurrentUser: async () => {
-        const response = await api.get('/users/user-info/');
+        const response = await api.get('/auth/me/');
         return response.data;
     },
     
+    // (Opcional) Si necesitas acceder a la instancia de axios desde fuera
     api
 };
 
-// --- INTERCEPTOR DE RESPUESTA ---
-api.interceptors.response.use(
-    (response) => response,
-    async (error) => {
-        const originalRequest = error.config;
-
-        if (originalRequest.url.includes('/users/token/refresh/')) {
-            return Promise.reject(error);
-        }
-
-        if (error.response?.status === 401 && !originalRequest._retry) {
-            originalRequest._retry = true;
-
-            try {
-                // ACTUALIZADO: Ruta de refresh correcta
-                await api.post('/users/token/refresh/', {});
-                return api(originalRequest);
-            } catch (refreshError) {
-                return Promise.reject(refreshError);
-            }
-        }
-        return Promise.reject(error);
-    }
-);
+// NOTA: El interceptor de respuesta (refresh token) se ha movido a 
+// src/config/api.js para mantener el código centralizado y evitar duplicados.
 
 export default authService;

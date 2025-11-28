@@ -1,98 +1,46 @@
+/* eslint-disable */
 import React from 'react';
-import { useQuery } from '@tanstack/react-query'; // Modernización React Query
-import competenciaService from '../services/competenciaService'; // Usamos el servicio correcto
-import { FaTrophy, FaHistory, FaArrowUp, FaCrown } from 'react-icons/fa';
+import { motion } from 'framer-motion';
+import { Star, Target } from 'lucide-react';
+
+const RecordCard = ({ disciplina, atleta, puntaje, fecha }) => (
+  <motion.div 
+    whileHover={{ y: -5 }}
+    className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl transition-all relative overflow-hidden group"
+  >
+    <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-amber-200 to-yellow-500 opacity-20 rounded-full -mr-8 -mt-8 blur-xl group-hover:opacity-30 transition-opacity" />
+    
+    <div className="flex items-start justify-between mb-4">
+      <div className="p-3 bg-slate-50 rounded-xl text-slate-600 group-hover:text-amber-600 transition-colors">
+        <Target size={24} />
+      </div>
+      <Star className="text-yellow-400 fill-yellow-400" size={20} />
+    </div>
+    
+    <h3 className="text-lg font-bold text-slate-800 mb-1">{disciplina}</h3>
+    <p className="text-4xl font-black text-slate-900 mb-4">{puntaje} <span className="text-lg text-slate-400 font-medium">pts</span></p>
+    
+    <div className="border-t border-slate-100 pt-4">
+      <p className="font-semibold text-slate-700">{atleta}</p>
+      <p className="text-xs text-slate-400">{fecha}</p>
+    </div>
+  </motion.div>
+);
 
 const RecordsView = () => {
-  
-  // Reemplazamos useEffect y useState manual por useQuery
-  const { data: records = [], isLoading, isError } = useQuery({
-    queryKey: ['records'],
-    queryFn: async () => {
-        // Usamos el método getRecords que definimos en competenciaService
-        const res = await competenciaService.getRecords();
-        return res.data;
-    }
-  });
-
-  if (isLoading) return <div className="p-5 text-center">Cargando Salón de la Fama...</div>;
-  if (isError) return <div className="p-5 text-center text-danger">Error al cargar los récords.</div>;
-
   return (
-    <div className="container fade-in pb-5">
-      <div className="text-center mb-5">
-        <h2 className="fw-bold text-dark text-uppercase letter-spacing-1">
-            <FaCrown className="text-warning me-2 mb-1"/> Récords Departamentales
-        </h2>
-        <p className="text-muted">Máximos puntajes históricos registrados oficialmente.</p>
-      </div>
+    <div className="min-h-screen bg-slate-50 p-6 md:p-10 font-sans">
+      <div className="max-w-6xl mx-auto space-y-10">
+        <div className="text-center">
+          <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-2">Hall of Fame</h1>
+          <p className="text-slate-500 text-lg">Récords Departamentales Vigentes</p>
+        </div>
 
-      <div className="row">
-        {records.map((rec, idx) => (
-          <div key={idx} className="col-lg-6 mb-4">
-            <div className="card border-0 shadow-sm h-100 overflow-hidden" style={{borderRadius: '20px'}}>
-              
-              {/* Header Modalidad */}
-              <div className="p-3 text-white d-flex justify-content-between align-items-center"
-                   style={{background: 'linear-gradient(135deg, #2c3e50 0%, #4e73df 100%)'}}>
-                  <span className="fw-bold"><FaTrophy className="me-2"/> {rec.modalidad}</span>
-                  <span className="badge bg-white text-primary rounded-pill">{rec.categoria}</span>
-              </div>
-
-              <div className="card-body p-0">
-                {/* SECCIÓN RÉCORD ACTUAL */}
-                <div className="p-4 bg-white position-relative">
-                    <div className="d-flex justify-content-between align-items-start">
-                        <div>
-                            <small className="text-uppercase text-success fw-bold letter-spacing-1">Récord Vigente</small>
-                            <h3 className="fw-bold text-dark mt-1 mb-0">{rec.actual.deportista}</h3>
-                            <p className="text-muted small mb-0">{rec.actual.competencia}</p>
-                            <p className="text-muted small">{rec.actual.fecha}</p>
-                        </div>
-                        <div className="text-end">
-                            <h1 className="display-4 fw-bold text-primary mb-0">{rec.actual.puntaje}</h1>
-                            {rec.anterior && (
-                                <span className="badge bg-success bg-opacity-10 text-success rounded-pill">
-                                    <FaArrowUp size={10}/> +{rec.anterior.diferencia} pts
-                                </span>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {/* SECCIÓN RÉCORD ANTERIOR (Si existe) */}
-                {rec.anterior ? (
-                    <div className="p-3 bg-light border-top">
-                        <div className="d-flex align-items-center text-muted">
-                            <FaHistory className="me-3 fs-4 opacity-50"/>
-                            {/* CORRECCIÓN: 'grow' en lugar de 'flex-grow-1' */}
-                            <div className="grow">
-                                <div className="d-flex justify-content-between small">
-                                    <span className="fw-bold text-uppercase">Récord Anterior</span>
-                                    <span>{rec.anterior.fecha}</span>
-                                </div>
-                                <div className="d-flex justify-content-between align-items-center mt-1">
-                                    <span>{rec.anterior.deportista}</span>
-                                    <span className="fw-bold text-secondary">{rec.anterior.puntaje} pts</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                ) : (
-                    <div className="p-3 bg-light border-top text-center text-muted small">
-                        <FaCrown className="text-warning me-1"/> Primer Récord Registrado
-                    </div>
-                )}
-              </div>
-            </div>
-          </div>
-        ))}
-        
-        {records.length === 0 && (
-            <div className="col-12 text-center py-5">
-                <div className="alert alert-light">Aún no se han registrado récords en el sistema.</div>
-            </div>
-        )}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <RecordCard disciplina="Pistola 9mm" atleta="Carlos Mamani" puntaje="99" fecha="Oct 2024" />
+          <RecordCard disciplina="Rifle Aire 10m" atleta="Ana Torrez" puntaje="295" fecha="Ago 2023" />
+          <RecordCard disciplina="Pistola Standard" atleta="Jorge Vargas" puntaje="560" fecha="Dic 2024" />
+        </div>
       </div>
     </div>
   );

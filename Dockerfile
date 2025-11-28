@@ -1,38 +1,33 @@
-# Usamos Python 3.12 oficial (versión ligera)
+# Usamos Python 3.12 Slim (Versión ligera y moderna)
 FROM python:3.12-slim
 
-# Evita que Python genere archivos .pyc y buffer de salida
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
+# Evita que Python genere archivos .pyc y fuerza la salida a la consola (bueno para logs)
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
 # Directorio de trabajo dentro del contenedor
 WORKDIR /app
 
-# Instalar dependencias del sistema
-# netcat: para el script de espera (nc)
-# gcc, libpq-dev: para compilar psycopg2 (Postgres)
+# Instalamos dependencias del sistema necesarias para PostgreSQL y netcat (para esperar a la DB)
 RUN apt-get update && apt-get install -y \
-    netcat-openbsd \
-    gcc \
     libpq-dev \
+    gcc \
+    netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
 
-# Instalar dependencias de Python
+# Copiamos primero los requirements para aprovechar la caché de Docker
 COPY requirements.txt /app/
-RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
-# Instalamos Daphne explícitamente por si no está en requirements
-RUN pip install daphne gunicorn psycopg2-binary
+RUN pip install --upgrade pip && pip install -r requirements.txt
 
-# Copiar el código del proyecto
+# Copiamos el resto del código
 COPY . /app/
 
-# Copiar y configurar el entrypoint
+# Damos permisos de ejecución al script de entrada
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-# Ejecutar el entrypoint
-ENTRYPOINT ["/app/entrypoint.sh"]
+# Exponemos el puerto (informativo)
+EXPOSE 8000
 
-# Comando por defecto (Usamos Daphne para soportar WebSockets + HTTP)
-CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "adtdcbba_backend.asgi:application"]
+# Ejecutamos el script de entrada
+ENTRYPOINT ["/app/entrypoint.sh"]

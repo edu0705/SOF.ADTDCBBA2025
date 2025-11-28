@@ -1,117 +1,142 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+/* eslint-disable */
+import React, { useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-
-// --- COMPONENTE EXTRAÍDO (FUERA DEL COMPONENTE PRINCIPAL) ---
-// Al definirlo aquí, React lo trata como un componente estable.
-const QuickActionCard = ({ title, icon, link, color, desc }) => (
-  <div className="col-md-4 mb-4">
-    <Link to={link} className="text-decoration-none">
-      <div className="card-modern h-100 p-4 position-relative overflow-hidden">
-        <div className={`position-absolute top-0 end-0 p-3 opacity-10 text-${color}`}>
-          <i className={`bi ${icon}`} style={{ fontSize: '5rem' }}></i>
-        </div>
-        <div className="position-relative z-1">
-          <div className={`icon-box bg-${color} bg-opacity-10 text-${color} rounded-circle d-inline-flex p-3 mb-3`}>
-            <i className={`bi ${icon} fs-3`}></i>
-          </div>
-          <h5 className="fw-bold text-dark mb-2">{title}</h5>
-          <p className="text-muted small mb-0">{desc}</p>
-        </div>
-      </div>
-    </Link>
-  </div>
-);
+import { motion } from 'framer-motion';
+import { 
+  User, Calendar, Trophy, ArrowRight, Target, 
+  LogOut, Loader2 
+} from 'lucide-react';
 
 const Dashboard = () => {
-  const { user } = useAuth();
+  // Obtenemos 'loading' para esperar a que el usuario cargue bien
+  const { user, userRoles, logout, loading } = useAuth(); 
+  const navigate = useNavigate();
 
+  // --- Lógica de Redirección ---
+  useEffect(() => {
+    // Solo ejecutamos si ya terminó de cargar la sesión (loading === false)
+    if (!loading && user) {
+      console.log("Verificando permisos...", { roles: userRoles, is_superuser: user.is_superuser });
+      
+      // Verificamos si es Admin, Superusuario o Juez
+      const isAdmin = 
+        user.is_superuser || 
+        userRoles.some(role => ['admin', 'administrador', 'juez'].includes(role.toLowerCase()));
+
+      if (isAdmin) {
+        navigate('/admin/dashboard', { replace: true });
+      }
+    }
+  }, [userRoles, user, loading, navigate]);
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  // 1. PANTALLA DE CARGA (Para evitar mostrar el dashboard equivocado)
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <Loader2 className="w-10 h-10 text-blue-600 animate-spin mx-auto mb-4" />
+          <p className="text-slate-500 font-medium">Verificando credenciales...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. DASHBOARD DE DEPORTISTA (Solo se muestra si NO fuiste redirigido)
   return (
-    <div className="container-fluid py-4">
-      {/* Bienvenida */}
-      <div className="row mb-5 align-items-center">
-        <div className="col-md-8">
-          <h1 className="fw-bold text-primary-dark mb-1">
-            Hola, {user?.first_name || 'Usuario'} 👋
-          </h1>
-          <p className="text-muted">Bienvenido al Sistema de Gestión Deportiva ADTCBBA.</p>
+    <div className="min-h-screen bg-slate-50 font-sans">
+      <nav className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center sticky top-0 z-50 shadow-sm">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-blue-200 shadow-lg">
+            <Target size={18} />
+          </div>
+          <span className="font-bold text-lg text-slate-800 tracking-tight">ADT<span className="text-blue-600">Portal</span></span>
         </div>
-        <div className="col-md-4 text-end">
-          <span className="badge bg-primary p-2 rounded-pill">
-            <i className="bi bi-calendar-event me-1"></i> Gestión 2025
-          </span>
+        <div className="flex items-center gap-4">
+          <div className="text-right hidden sm:block">
+            <p className="text-sm font-bold text-slate-700">{user?.first_name || user?.username}</p>
+            <p className="text-xs text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded-full inline-block">Deportista</p>
+          </div>
+          <button 
+            onClick={handleLogout} 
+            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100"
+            title="Cerrar Sesión"
+          >
+            <LogOut size={20} />
+          </button>
         </div>
-      </div>
+      </nav>
 
-      {/* Métricas Rápidas (Mockup visual) */}
-      <div className="row mb-5">
-        <div className="col-md-3">
-          <div className="card-modern p-3 border-start border-4 border-primary">
-            <small className="text-muted text-uppercase fw-bold">Competencias Activas</small>
-            <h2 className="fw-bold mt-2 mb-0">3</h2>
-          </div>
-        </div>
-        <div className="col-md-3">
-          <div className="card-modern p-3 border-start border-4 border-success">
-            <small className="text-muted text-uppercase fw-bold">Inscripciones Hoy</small>
-            <h2 className="fw-bold mt-2 mb-0">12</h2>
-          </div>
-        </div>
-        <div className="col-md-3">
-          <div className="card-modern p-3 border-start border-4 border-warning">
-            <small className="text-muted text-uppercase fw-bold">Próximo Evento</small>
-            <h6 className="fw-bold mt-2 mb-0 text-truncate">Nacional FBI 9mm</h6>
-          </div>
-        </div>
-      </div>
-
-      {/* Accesos Directos por Rol */}
-      <h5 className="fw-bold text-secondary mb-3">Accesos Directos</h5>
-      <div className="row">
-        <QuickActionCard 
-          title="Marcador en Vivo" 
-          desc="Ver resultados de competencias en tiempo real."
-          icon="bi-broadcast" 
-          link="/live-score" 
-          color="danger"
-        />
+      <main className="max-w-5xl mx-auto p-6 md:p-10 space-y-8">
         
-        {(user?.role === 'admin' || user?.is_superuser) && (
-          <>
-            <QuickActionCard 
-              title="Gestión de Competencias" 
-              desc="Crear eventos, definir costos y fechas."
-              icon="bi-trophy" 
-              link="/competencias" 
-              color="primary"
-            />
-            <QuickActionCard 
-              title="Base de Deportistas" 
-              desc="Administrar padrón, credenciales y armas."
-              icon="bi-people" 
-              link="/deportistas" 
-              color="success"
-            />
-            <QuickActionCard 
-              title="Reportes y REAFUC" 
-              desc="Generar informes oficiales y trazabilidad."
-              icon="bi-file-earmark-bar-graph" 
-              link="/reports" 
-              color="info"
-            />
-          </>
-        )}
+        {/* Bienvenida */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-3xl p-8 text-white shadow-xl shadow-blue-900/20 relative overflow-hidden"
+        >
+          <div className="relative z-10">
+            <h1 className="text-3xl font-bold mb-2">Hola, {user?.first_name || 'Atleta'} 👋</h1>
+            <p className="text-blue-100 max-w-lg text-lg">Bienvenido a tu panel personal. Gestiona tus competencias y resultados.</p>
+          </div>
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
+        </motion.div>
 
-        {(user?.role === 'juez') && (
-          <QuickActionCard 
-            title="Panel de Juez" 
-            desc="Registrar puntajes y validar series."
-            icon="bi-pencil-square" 
-            link="/judge-panel" 
-            color="warning"
-          />
-        )}
-      </div>
+        {/* Accesos Rápidos */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          
+          <Link to="/inscripcion/nueva" className="block group">
+            <motion.div 
+              whileHover={{ y: -5 }}
+              className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 group-hover:shadow-md transition-all h-full"
+            >
+              <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                <Calendar size={24} />
+              </div>
+              <h3 className="text-lg font-bold text-slate-800 mb-1">Inscripciones</h3>
+              <p className="text-slate-500 text-sm flex items-center gap-1 group-hover:text-blue-600 transition-colors">
+                Ver calendario <ArrowRight size={14} />
+              </p>
+            </motion.div>
+          </Link>
+
+          <Link to="/perfil" className="block group">
+            <motion.div 
+              whileHover={{ y: -5 }}
+              className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 group-hover:shadow-md transition-all h-full"
+            >
+              <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                <Trophy size={24} />
+              </div>
+              <h3 className="text-lg font-bold text-slate-800 mb-1">Resultados</h3>
+              <p className="text-slate-500 text-sm flex items-center gap-1 group-hover:text-amber-600 transition-colors">
+                Ver historial <ArrowRight size={14} />
+              </p>
+            </motion.div>
+          </Link>
+
+          <Link to="/perfil" className="block group">
+            <motion.div 
+              whileHover={{ y: -5 }}
+              className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 group-hover:shadow-md transition-all h-full"
+            >
+              <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                <User size={24} />
+              </div>
+              <h3 className="text-lg font-bold text-slate-800 mb-1">Mi Perfil</h3>
+              <p className="text-slate-500 text-sm flex items-center gap-1 group-hover:text-purple-600 transition-colors">
+                Editar datos <ArrowRight size={14} />
+              </p>
+            </motion.div>
+          </Link>
+
+        </div>
+      </main>
     </div>
   );
 };

@@ -1,129 +1,123 @@
-import React, { useState } from 'react';
-import axios from 'axios';
-import { FaSearch, FaIdCard, FaCrosshairs, FaCertificate, FaCheckCircle, FaTimesCircle, FaUserShield } from 'react-icons/fa';
-import logo from '../assets/logo.png';
+/* eslint-disable */
+import React, { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ShieldCheck, Search, FileText, CheckCircle, XCircle, ArrowRight, Loader2 } from 'lucide-react';
+import api from '../config/api';
 
 const VerificationPortal = () => {
-  const [tab, setTab] = useState('deportista');
-  const [query, setQuery] = useState('');
+  const { codigo } = useParams();
+  const [searchCode, setSearchCode] = useState(codigo || '');
   const [result, setResult] = useState(null);
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8001/api/';
+  useEffect(() => {
+    if (codigo) handleSearch(codigo);
+  }, [codigo]);
 
-  const handleSearch = async (e) => {
-    e.preventDefault();
-    if(!query.trim()) return;
-    setLoading(true); setResult(null); setError('');
+  const handleSearch = async (codeToSearch = searchCode) => {
+    if (!codeToSearch) return;
+    setLoading(true);
+    setError(null);
+    setResult(null);
 
     try {
-        const res = await axios.get(`${API_URL}deportistas/verify/?type=${tab}&q=${query}`);
-        setResult(res.data);
-    } catch (err) {
-        setError(err.response?.data?.detail || "No se encontraron registros.");
+      const { data } = await api.get(`/public/verificar/${codeToSearch}/`);
+      setResult(data);
+    } catch {
+      setError("Documento no encontrado o código inválido.");
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-vh-100 bg-light d-flex flex-column align-items-center py-5">
-        <div className="text-center mb-5 fade-in">
-            <img src={logo} alt="ADT" style={{width: '80px'}} className="mb-3"/>
-            <h2 className="fw-bold text-dark">Portal de Verificación Oficial</h2>
-            <p className="text-muted">Sistema de Consultas - ADTDCBBA</p>
-        </div>
+    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 relative overflow-hidden font-sans">
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
+        <div className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] bg-blue-600/20 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-purple-600/20 rounded-full blur-[120px]" />
+      </div>
+      
+      <div className="w-full max-w-lg relative z-10">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-10">
+          <div className="inline-flex p-4 bg-white/10 backdrop-blur-md rounded-2xl mb-4 border border-white/20 shadow-2xl">
+            <ShieldCheck className="text-blue-400 w-12 h-12" />
+          </div>
+          <h1 className="text-4xl font-bold text-white tracking-tight">Verificación Oficial</h1>
+          <p className="text-slate-400 mt-2 text-lg">Sistema de Validación de Certificados</p>
+        </motion.div>
 
-        <div className="card border-0 shadow-lg rounded-4 overflow-hidden w-100" style={{maxWidth: '700px'}}>
-            <div className="card-header bg-white border-0 p-1">
-                <ul className="nav nav-pills nav-fill p-2 bg-light rounded-pill mx-3 mt-3">
-                    <li className="nav-item">
-                        {/* USO DE ICONOS DE PESTAÑA */}
-                        <button className={`nav-link rounded-pill fw-bold ${tab==='deportista'?'active bg-primary':''}`} onClick={()=>{setTab('deportista'); setResult(null); setError(''); setQuery('');}}>
-                            <FaUserShield className="me-2"/> Deportista
-                        </button>
-                    </li>
-                    <li className="nav-item">
-                        <button className={`nav-link rounded-pill fw-bold ${tab==='arma'?'active bg-danger':''}`} onClick={()=>{setTab('arma'); setResult(null); setError(''); setQuery('');}}>
-                            <FaCrosshairs className="me-2"/> Arma
-                        </button>
-                    </li>
-                    <li className="nav-item">
-                        <button className={`nav-link rounded-pill fw-bold ${tab==='certificado'?'active bg-warning text-dark':''}`} onClick={()=>{setTab('certificado'); setResult(null); setError(''); setQuery('');}}>
-                            <FaCertificate className="me-2"/> Certificado
-                        </button>
-                    </li>
-                </ul>
-            </div>
-            
-            <div className="card-body p-5">
-                <form onSubmit={handleSearch} className="mb-4">
-                    <label className="form-label fw-bold text-muted small">
-                        {tab === 'deportista' && 'Ingrese CI o Código Único (ADT-202X...)'}
-                        {tab === 'arma' && 'Ingrese Número de Matrícula'}
-                        {tab === 'certificado' && 'Ingrese Código de Verificación (UUID)'}
-                    </label>
-                    <div className="input-group input-group-lg">
-                        <input type="text" className="form-control rounded-start-pill ps-4" placeholder="Escriba aquí..." value={query} onChange={e=>setQuery(e.target.value)} autoFocus/>
-                        <button className={`btn rounded-end-pill px-4 ${tab==='deportista'?'btn-primary':tab==='arma'?'btn-danger':'btn-warning'}`} type="submit">
-                            {loading ? '...' : <FaSearch/>}
-                        </button>
-                    </div>
-                </form>
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.1 }} className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-8 border border-white/50">
+          <div className="relative mb-6">
+            <input 
+              type="text" 
+              placeholder="CÓDIGO DEL CERTIFICADO"
+              className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-slate-200 rounded-xl text-lg outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all uppercase tracking-widest placeholder-slate-400 font-mono text-center font-bold text-slate-800"
+              value={searchCode}
+              onChange={(e) => setSearchCode(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={24} />
+          </div>
 
-                {/* ERROR CON ICONO */}
-                {error && (
-                    <div className="alert alert-danger rounded-4 text-center fade-in">
-                        <FaTimesCircle className="me-2"/> {error}
-                    </div>
-                )}
+          <button 
+            onClick={() => handleSearch()}
+            disabled={loading || !searchCode}
+            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
+          >
+            {loading ? <Loader2 className="animate-spin" /> : "Validar Documento"}
+          </button>
 
-                {result && tab === 'deportista' && (
-                    <div className="fade-in text-center">
-                        {result.foto_url && <img src={result.foto_url} className="rounded-circle mb-3 shadow border border-4 border-white" style={{width:'120px', height:'120px', objectFit:'cover'}} alt="Foto"/>}
-                        <h3 className="fw-bold text-dark">{result.nombre}</h3>
-                        <span className={`badge fs-6 mb-3 ${result.estado==='Activo'?'bg-success':'bg-danger'}`}>{result.estado}</span>
-                        
-                        <div className="row text-start bg-light p-3 rounded-4 border mb-3">
-                            <div className="col-6 mb-2"><small className="text-muted">Código Único</small><div className="fw-bold text-primary">{result.codigo_unico || 'S/N'}</div></div>
-                            <div className="col-6 mb-2"><small className="text-muted">CI</small><div className="fw-bold">{result.ci}</div></div>
-                            <div className="col-6"><small className="text-muted">Club</small><div className="fw-bold">{result.club}</div></div>
-                            <div className="col-6"><small className="text-muted">Licencia B</small><div className={`fw-bold ${new Date(result.licencia_b_vencimiento) < new Date() ? 'text-danger' : 'text-success'}`}>{result.licencia_b_vencimiento}</div></div>
-                        </div>
+          <AnimatePresence mode="wait">
+            {error && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="mt-6 p-4 bg-red-50 border border-red-100 rounded-xl flex items-center gap-3 text-red-700">
+                <XCircle className="shrink-0" />
+                <p className="text-sm font-medium">{error}</p>
+              </motion.div>
+            )}
+
+            {result && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8 border-t border-slate-100 pt-6">
+                <div className="flex items-center justify-center gap-2 mb-6 text-emerald-700 bg-emerald-50 px-6 py-2 rounded-full w-fit mx-auto border border-emerald-200 shadow-sm">
+                  <CheckCircle size={20} />
+                  <span className="text-sm font-bold uppercase tracking-wide">Auténtico y Válido</span>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                    <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold mb-1">Deportista</p>
+                    <p className="text-xl font-bold text-slate-900">{result.deportista}</p>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold mb-1">Competencia</p>
+                      <p className="text-sm font-semibold text-slate-800 leading-tight">{result.competencia}</p>
                     </div>
-                )}
+                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                      <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold mb-1">Puntaje</p>
+                      <p className="text-2xl font-black text-blue-600">{result.puntaje}</p>
+                    </div>
+                  </div>
+                </div>
                 
-                {result && tab === 'arma' && (
-                     <div className="fade-in">
-                         <div className="alert alert-success rounded-4 text-center"><FaCheckCircle className="me-2"/> Arma Registrada</div>
-                         <div className="row text-start bg-light p-4 rounded-4 border">
-                             <div className="col-12 mb-3 text-center"><h4 className="fw-bold">{result.marca_modelo}</h4><span className="badge bg-dark">{result.calibre}</span></div>
-                             <div className="col-6 mb-2"><small className="text-muted">Matrícula</small><div className="fw-bold font-monospace">{result.matricula}</div></div>
-                             <div className="col-6 mb-2"><small className="text-muted">Propietario</small><div className="fw-bold text-primary">{result.propietario}</div></div>
-                         </div>
-                     </div>
-                )}
+                <div className="mt-6 pt-4 border-t border-slate-100 text-center">
+                   <p className="text-xs text-slate-400 flex items-center justify-center gap-1.5">
+                    <ShieldCheck size={14} /> Certificado Digitalmente por ADT System
+                   </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
 
-                {result && tab === 'certificado' && (
-                    <div className="fade-in text-center border p-4 rounded-4" style={{background: '#fff8e1'}}>
-                         <FaCertificate size={50} className="text-warning mb-3"/>
-                         <h4 className="fw-bold text-dark">CERTIFICADO AUTÉNTICO</h4>
-                         <p className="text-success fw-bold mb-4"><FaCheckCircle/> Documento Oficial</p>
-                         <div className="text-start small">
-                             <strong>Deportista:</strong> {result.deportista}<br/>
-                             <strong>Competencia:</strong> {result.competencia}<br/>
-                             <strong>Puntaje:</strong> {result.puntaje}
-                         </div>
-                    </div>
-                )}
-            </div>
+        <div className="mt-8 text-center">
+          <Link to="/login" className="text-white/60 hover:text-white text-sm font-medium transition-colors flex items-center justify-center gap-2 group">
+            Acceso Administrativo <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+          </Link>
         </div>
-        
-        <div className="mt-5 text-muted small text-center">
-            <p>© {new Date().getFullYear()} ADTDCBBA</p>
-            <a href="/login" className="text-decoration-none text-primary"><FaIdCard className="me-1"/> Acceso Administrativo</a>
-        </div>
+      </div>
     </div>
   );
 };

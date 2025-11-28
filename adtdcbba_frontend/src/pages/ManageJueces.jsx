@@ -1,125 +1,90 @@
-import React, { useState, useEffect } from 'react';
-import competenciaService from '../services/competenciaService';
-import { FaGavel, FaPlus, FaTrash, FaSave, FaTimes, FaIdCard, FaKey } from 'react-icons/fa';
+/* eslint-disable */
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Search, UserPlus, Shield, BadgeCheck, Mail, Phone, Trash2, X, Save } from 'lucide-react';
+import api from '../config/api';
 
 const ManageJueces = () => {
-  const [jueces, setJueces] = useState([]);
-  const [isCreating, setIsCreating] = useState(false);
-  const [newData, setNewData] = useState({ full_name: '', license_number: '' });
-  const [loading, setLoading] = useState(true);
+  const { data: jueces = [], isLoading, refetch } = useQuery({
+    queryKey: ['jueces'],
+    queryFn: async () => (await api.get('/competencias/jueces/')).data
+  });
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const [showModal, setShowModal] = useState(false);
+  const [formData, setFormData] = useState({ full_name: '', license_number: '' });
 
-  const loadData = async () => {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     try {
-      const res = await competenciaService.api.get('jueces/');
-      setJueces(res.data.results || res.data);
-    } catch (err) { console.error(err); } 
-    finally { setLoading(false); }
-  };
-
-  const handleCreate = async (e) => {
-      e.preventDefault();
-      if(!newData.full_name.trim()) return;
-      try {
-          await competenciaService.api.post('jueces/', newData);
-          setNewData({ full_name: '', license_number: '' });
-          setIsCreating(false);
-          loadData();
-      } catch (err) { alert("Error al registrar juez."); }
+      await api.post('/competencias/jueces/', formData);
+      setShowModal(false);
+      setFormData({ full_name: '', license_number: '' });
+      refetch();
+    } catch { alert('Error al registrar juez'); }
   };
 
   const handleDelete = async (id) => {
-      if(window.confirm("¿Eliminar a este juez de la lista?")) {
-          try {
-              await competenciaService.api.delete(`jueces/${id}/`);
-              loadData();
-          } catch (err) { alert("Error al eliminar."); }
-      }
+    if (confirm('¿Eliminar juez?')) {
+      try { await api.delete(`/competencias/jueces/${id}/`); refetch(); } catch { alert('No se puede eliminar'); }
+    }
   };
-
-  // --- ACCIÓN: GENERAR ACCESO ---
-  const handleCreateAccess = async (id, nombre) => {
-      if(!window.confirm(`¿Generar acceso para ${nombre}?`)) return;
-      try {
-          const res = await competenciaService.api.post(`jueces/${id}/create_access/`);
-          alert(`✅ ACCESO GENERADO:\n\nUsuario: ${res.data.username}\nContraseña: ${res.data.password}\n\n¡Guarda estos datos y entrégalos al Juez!`);
-      } catch (err) {
-          alert("Error al generar acceso.");
-      }
-  };
-
-  if (loading) return <div className="text-center p-5">Cargando...</div>;
 
   return (
-    <div className="container fade-in">
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2 className="fw-bold text-dark">Cuerpo de Jueces</h2>
-        <button className="btn btn-primary rounded-pill px-4 shadow-sm" onClick={() => setIsCreating(true)}>
-            <FaPlus className="me-2"/> Registrar Juez
+    <div className="space-y-8 pb-10">
+      <div className="flex flex-col md:flex-row justify-between items-end gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Cuerpo de Jueces</h1>
+          <p className="text-slate-500 mt-1">Autoridades oficiales de competencia.</p>
+        </div>
+        <button onClick={() => setShowModal(true)} className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl font-medium shadow-lg flex items-center gap-2 transition-all active:scale-95">
+          <UserPlus size={20} /> Registrar Juez
         </button>
       </div>
 
-      {isCreating && (
-          <div className="card-elegant p-4 mb-4 bg-light border-primary border">
-              <h5 className="fw-bold text-primary mb-3">Nuevo Oficial</h5>
-              <form onSubmit={handleCreate} className="row g-3">
-                  <div className="col-md-5">
-                      <input 
-                        autoFocus type="text" className="form-control rounded-pill" 
-                        placeholder="Nombre Completo" 
-                        value={newData.full_name} onChange={e => setNewData({...newData, full_name: e.target.value})} required
-                      />
-                  </div>
-                  <div className="col-md-5">
-                      <input 
-                        type="text" className="form-control rounded-pill" 
-                        placeholder="Nro. Licencia / Certificación" 
-                        value={newData.license_number} onChange={e => setNewData({...newData, license_number: e.target.value})} required
-                      />
-                  </div>
-                  <div className="col-md-2 d-flex gap-2">
-                      <button type="submit" className="btn btn-success rounded-pill w-100"><FaSave/></button>
-                      <button type="button" className="btn btn-secondary rounded-pill w-100" onClick={() => setIsCreating(false)}><FaTimes/></button>
-                  </div>
-              </form>
-          </div>
-      )}
-
-      <div className="row">
-          {jueces.map(juez => (
-              <div key={juez.id} className="col-md-6 col-xl-4 mb-4">
-                  <div className="card-elegant h-100 p-4 position-relative">
-                      <div className="text-center mb-3">
-                          <div className="bg-dark text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-2 shadow-sm" style={{width:'60px', height:'60px'}}>
-                              <FaGavel size={24}/>
-                          </div>
-                          <h5 className="fw-bold text-dark m-0">{juez.full_name}</h5>
-                          <span className="badge bg-light text-muted border mt-2">
-                              <FaIdCard className="me-1"/> Lic: {juez.license_number}
-                          </span>
-                      </div>
-                      
-                      <div className="d-flex justify-content-center gap-2 border-top pt-3">
-                          <button 
-                            className="btn btn-sm btn-warning rounded-pill px-3 fw-bold text-dark" 
-                            onClick={() => handleCreateAccess(juez.id, juez.full_name)}
-                            title="Generar Usuario y Contraseña"
-                          >
-                              <FaKey className="me-1"/> Acceso
-                          </button>
-                          
-                          <button className="btn btn-sm btn-outline-danger rounded-pill px-3" onClick={() => handleDelete(juez.id)}>
-                              <FaTrash/>
-                          </button>
-                      </div>
-                  </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {isLoading ? <p className="col-span-4 text-center text-slate-400 py-10">Cargando...</p> : jueces.map((juez, i) => (
+          <motion.div key={juez.id} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.05 }} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden text-center">
+            <div className="absolute top-0 left-0 w-full h-20 bg-slate-900/5 z-0" />
+            <div className="relative z-10 -mt-2">
+              <div className="w-20 h-20 mx-auto bg-slate-900 rounded-full flex items-center justify-center text-white border-4 border-white shadow-lg mb-3">
+                <Shield size={32} />
               </div>
-          ))}
-          {jueces.length === 0 && <div className="col-12 text-center p-5 text-muted">No hay jueces registrados.</div>}
+              <h3 className="font-bold text-lg text-slate-900">{juez.full_name}</h3>
+              <p className="text-xs text-slate-500 uppercase tracking-widest font-bold mb-4">Juez Oficial</p>
+              
+              <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 text-sm">
+                <p className="text-slate-400 text-xs uppercase font-bold mb-1">Licencia</p>
+                <p className="font-mono font-medium text-slate-700">{juez.license_number || 'N/A'}</p>
+              </div>
+              
+              <button onClick={() => handleDelete(juez.id)} className="absolute top-4 right-4 text-slate-400 hover:text-red-500 p-2"><Trash2 size={16} /></button>
+            </div>
+          </motion.div>
+        ))}
       </div>
+
+      <AnimatePresence>
+        {showModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md relative">
+              <button onClick={() => setShowModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><X size={24} /></button>
+              <h2 className="text-2xl font-bold text-slate-900 mb-6">Nuevo Juez</h2>
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Nombre Completo</label>
+                  <input type="text" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-slate-500/20 outline-none" value={formData.full_name} onChange={e => setFormData({...formData, full_name: e.target.value})} required />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Número de Licencia</label>
+                  <input type="text" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-slate-500/20 outline-none" value={formData.license_number} onChange={e => setFormData({...formData, license_number: e.target.value})} required />
+                </div>
+                <button type="submit" className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-lg transition-all active:scale-95 flex justify-center gap-2"><Save size={20} /> Registrar</button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

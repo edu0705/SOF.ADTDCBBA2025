@@ -1,84 +1,34 @@
-/* Importar fuentes modernas */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-:root {
-  /* Paleta Institucional */
-  --primary-color: #0f172a;   /* Azul Oscuro Profundo */
-  --secondary-color: #334155; /* Gris Azulado */
-  --accent-color: #fbbf24;    /* Dorado Deportivo */
-  --success-color: #10b981;   /* Verde Moderno */
-  --danger-color: #ef4444;    /* Rojo Alerta */
-  
-  /* UI Elements */
-  --bg-body: #f8fafc;
-  --bg-card: #ffffff;
-  --border-radius: 12px;
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+@layer base {
+  body {
+    /* Fondo gris muy suave con un toque azulado para modernidad */
+    @apply bg-slate-50 text-slate-800 antialiased font-sans selection:bg-blue-100 selection:text-blue-700;
+  }
 }
 
-body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background-color: var(--bg-body);
-  color: #1e293b;
-  -webkit-font-smoothing: antialiased;
+/* Efecto Cristal (Glassmorphism) */
+.glass {
+  @apply bg-white/80 backdrop-blur-xl border border-white/40 shadow-lg;
 }
 
-/* Tarjetas con efecto Glassmorphism sutil */
-.card-modern {
-  background: var(--bg-card);
-  border-radius: var(--border-radius);
-  box-shadow: var(--shadow-sm);
-  border: 1px solid #e2e8f0;
-  transition: all 0.3s ease;
+.glass-panel {
+  @apply bg-white/50 backdrop-blur-md border border-white/30 shadow-sm hover:shadow-md transition-all duration-300;
 }
 
-.card-modern:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+/* Scrollbar invisible pero funcional */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
-
-/* Botones Profesionales */
-.btn-primary-modern {
-  background-color: var(--primary-color);
-  color: white;
-  border: none;
-  padding: 0.6rem 1.2rem;
-  border-radius: 8px;
-  font-weight: 500;
-  transition: background-color 0.2s;
+::-webkit-scrollbar-track {
+  background: transparent;
 }
-
-.btn-primary-modern:hover {
-  background-color: #1e293b;
-  color: var(--accent-color);
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-300 rounded-full;
 }
-
-/* Inputs Limpios */
-.form-control-modern {
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  padding: 0.6rem;
-}
-
-.form-control-modern:focus {
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.1);
-}
-
-/* Tablas Elegantes */
-.table-modern thead th {
-  background-color: var(--primary-color);
-  color: white;
-  font-weight: 500;
-  border: none;
-}
-
-.table-modern tbody tr {
-  transition: background-color 0.2s;
-}
-
-.table-modern tbody tr:hover {
-  background-color: #f1f5f9;
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-400;
 }

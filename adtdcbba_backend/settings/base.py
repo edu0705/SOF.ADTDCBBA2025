@@ -5,29 +5,36 @@ import environ
 
 # Inicializar variables de entorno
 env = environ.Env()
-environ.Env.read_env(os.path.join(Path(__file__).resolve().parent.parent.parent, '.env'))
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+# Intentar leer .env solo si existe (útil para desarrollo local fuera de Docker)
+# En Docker, las variables vienen del docker-compose, así que esto es un fallback.
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
-# SEGURIDAD CRÍTICA: La Secret Key nunca debe estar en el código
-SECRET_KEY = env('DJANGO_SECRET_KEY', default='django-insecure-CHANGE-ME-IN-PROD')
+# --- SEGURIDAD CRÍTICA ---
+# Si falta esta variable, la app NO debe iniciar. Sin defaults inseguros.
+SECRET_KEY = env('DJANGO_SECRET_KEY')
+
+# Debug debe ser False por defecto a menos que se especifique lo contrario
+DEBUG = env.bool('DEBUG', default=False)
+
+ALLOWED_HOSTS = env.list('DJANGO_ALLOWED_HOSTS', default=['localhost', '127.0.0.1'])
 
 # Aplicaciones instaladas
 DJANGO_APPS = [
+    'daphne', # Daphne debe ir al principio para ASGI
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'daphne',
     'django.contrib.staticfiles',
 ]
 
 THIRD_PARTY_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
-    'corsheaders', # App registrada correctamente aquí
+    'corsheaders', 
     'channels',
     'drf_spectacular', 
 ]
@@ -37,13 +44,14 @@ LOCAL_APPS = [
     'competencias',
     'deportistas',
     'clubs',
+    # 'adtdcbba_backend', # No es necesario agregar la carpeta de configuración como app
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'corsheaders.middleware.CorsMiddleware',  # CORRECTO: Debe ir al principio
+    'corsheaders.middleware.CorsMiddleware', 
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -73,6 +81,12 @@ TEMPLATES = [
 WSGI_APPLICATION = 'adtdcbba_backend.wsgi.application'
 ASGI_APPLICATION = "adtdcbba_backend.asgi.application"
 
+# --- BASE DE DATOS ---
+# Usamos dj-database-url (que viene con django-environ)
+DATABASES = {
+    'default': env.db('DATABASE_URL', default=f'sqlite:///{BASE_DIR / "db.sqlite3"}')
+}
+
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
@@ -87,7 +101,7 @@ TIME_ZONE = 'America/La_Paz'
 USE_I18N = True
 USE_TZ = True
 
-# Static files
+# Static files (CSS, JavaScript, Images)
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
@@ -101,17 +115,20 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Custom User Model
 AUTH_USER_MODEL = 'users.User'
 
-# REST FRAMEWORK CONFIG
+# --- REST FRAMEWORK CONFIG ---
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        # 'rest_framework_simplejwt.authentication.JWTAuthentication', 
+        # COMENTADO: Usamos nuestra autenticación personalizada que lee cookies
+        'users.authentication.CustomJWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
-# JWT CONFIG
+# --- JWT CONFIG ---
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
@@ -120,31 +137,46 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
-# CHANNELS CONFIG
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [(env('REDIS_HOST', default='redis'), 6379)],
+# --- COOKIE AUTH SETTINGS ---
+# Estas configuraciones controlan cómo se guardan las cookies
+AUTH_COOKIE = 'access_token'
+AUTH_COOKIE_REFRESH = 'refresh_token'
+AUTH_COOKIE_SECURE = env.bool('AUTH_COOKIE_SECURE', default=False) # True en Prod (HTTPS)
+AUTH_COOKIE_HTTP_ONLY = True
+AUTH_COOKIE_PATH = '/'
+AUTH_COOKIE_SAMESITE = 'Lax' # 'Lax' es necesario para que funcione la navegación normal
+
+# --- CHANNELS (REDIS) ---
+if env('REDIS_HOST', default=None):
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [(env('REDIS_HOST'), 6379)],
+            },
         },
-    },
-}
+    }
+else:
+    # Fallback a memoria para desarrollo sin docker (aunque no recomendado para WS)
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer"
+        }
+    }
 
-# -----------------------------------------------------------------------------
-# CONFIGURACIÓN DE CORS Y CSRF (NUEVO - SOLUCIÓN AL ERROR)
-# -----------------------------------------------------------------------------
-
-# Define explícitamente qué dominios pueden hacer peticiones
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-]
-
-# Permite el envío de cookies y headers de autenticación
+# --- CORS & CSRF ---
+# Permitimos credenciales (Cookies)
 CORS_ALLOW_CREDENTIALS = True
 
-# Importante para Django 4.0+: Confiar en este origen para peticiones seguras (POST/PUT/DELETE)
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-]
+# Definimos orígenes permitidos desde variables de entorno
+# Ejemplo en .env: CORS_ALLOWED_ORIGINS=http://localhost,http://127.0.0.1
+CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=["http://localhost", "http://127.0.0.1"])
+
+# CSRF Trusted Origins (Obligatorio para Django 4.0+ tras proxy)
+CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=["http://localhost", "http://127.0.0.1"])
+
+# Configuración de validación CSRF
+CSRF_COOKIE_NAME = 'csrftoken'
+CSRF_HEADER_NAME = 'HTTP_X_CSRFTOKEN'
+CSRF_COOKIE_HTTPONLY = False # Debe ser False para que JS (Axios) pueda leerla y enviarla en el header
+CSRF_USE_SESSIONS = False

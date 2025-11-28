@@ -1,73 +1,70 @@
-// src/pages/ResultsList.js
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import competenciaService from '../services/competenciaService';
-import { FaTrophy, FaCalendarAlt, FaArrowRight, FaCheckCircle } from 'react-icons/fa';
+/* eslint-disable */
+import React from 'react';
+import { motion } from 'framer-motion';
+import { Trophy, Medal, Search, ChevronRight } from 'lucide-react';
 
 const ResultsList = () => {
-  const [competencias, setCompetencias] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchComps = async () => {
-      try {
-        const res = await competenciaService.getCompetencias();
-        const data = res.data.results || res.data;
-        // Filtramos solo las FINALIZADAS (Resultados Oficiales)
-        setCompetencias(data.filter(c => c.status === 'Finalizada')); 
-      } catch (err) {
-        console.error("Error cargando competencias", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchComps();
-  }, []);
-
-  if (loading) return <div className="text-center p-5">Cargando campeonatos...</div>;
-
   return (
-    <div className="container fade-in">
-      <div className="mb-4">
-        <h2 className="fw-bold text-dark">Resultados Oficiales</h2>
-        <p className="text-muted">Selecciona un campeonato para ver los puntajes detallados.</p>
-      </div>
-      
-      <div className="row">
-        {competencias.length === 0 ? (
-             <div className="col-12">
-                 <div className="alert alert-light text-center shadow-sm rounded-4 p-5">
-                    <FaTrophy className="text-muted mb-3" size={40} opacity={0.3} />
-                    <h5>No hay campeonatos finalizados aún.</h5>
-                 </div>
-             </div>
-        ) : (
-            competencias.map(comp => (
-              <div key={comp.id} className="col-md-6 col-lg-4 mb-4">
-                <div className="card-elegant h-100 border-0 shadow-sm hover-scale">
-                  <div className="card-body p-4">
-                    <div className="d-flex justify-content-between mb-3">
-                        <span className="badge bg-success bg-opacity-10 text-success rounded-pill px-3 py-2 d-flex align-items-center gap-2">
-                            <FaCheckCircle size={12}/> Finalizada
-                        </span>
-                        <small className="text-muted fw-bold">{comp.type}</small>
-                    </div>
-                    
-                    <h4 className="fw-bold mb-2 text-dark">{comp.name}</h4>
-                    
-                    <div className="d-flex align-items-center text-muted small mb-4">
-                        <FaCalendarAlt className="me-2 text-primary"/>
-                        {comp.start_date}
-                    </div>
-                    
-                    <Link to={`/admin/resultados/${comp.id}`} className="btn btn-outline-primary w-100 rounded-pill fw-bold">
-                        Ver Resultados <FaArrowRight className="ms-2"/>
-                    </Link>
-                  </div>
+    <div className="min-h-screen bg-slate-50 font-sans">
+      {/* Header Público */}
+      <header className="bg-slate-900 text-white py-12 px-6 text-center relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-full bg-blue-600/10 z-0" />
+        <div className="relative z-10 max-w-4xl mx-auto">
+          <Trophy size={48} className="mx-auto mb-4 text-yellow-400" />
+          <h1 className="text-4xl font-bold mb-2">Resultados Oficiales</h1>
+          <p className="text-slate-400 text-lg">Consulta los puntajes y rankings de todas las competencias.</p>
+        </div>
+      </header>
+
+      <div className="max-w-5xl mx-auto p-6 -mt-8 relative z-20">
+        {/* Buscador Flotante */}
+        <div className="bg-white p-2 rounded-2xl shadow-xl flex items-center mb-10">
+          <Search className="ml-4 text-slate-400" size={20} />
+          <input 
+            type="text" 
+            placeholder="Buscar competencia, atleta o club..." 
+            className="w-full p-4 outline-none text-lg text-slate-700"
+          />
+          <button className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors">
+            Buscar
+          </button>
+        </div>
+
+        {/* Lista de Resultados */}
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <motion.div 
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1 }}
+              className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-lg transition-all cursor-pointer group flex items-center justify-between"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center text-slate-500 font-bold group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                  {2025}
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800 group-hover:text-blue-600 transition-colors">Campeonato Nacional Apertura</h3>
+                  <p className="text-slate-500 text-sm">Polígono Central • Pistola 9mm</p>
                 </div>
               </div>
-            ))
-        )}
+              
+              <div className="flex items-center gap-6">
+                <div className="text-right hidden sm:block">
+                  <p className="text-xs text-slate-400 uppercase font-bold">Ganador</p>
+                  <div className="flex items-center gap-1">
+                    <Medal size={14} className="text-yellow-500" />
+                    <span className="font-medium text-slate-700">Carlos Mamani (CTT)</span>
+                  </div>
+                </div>
+                <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
+                  <ChevronRight size={20} />
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
       </div>
     </div>
   );

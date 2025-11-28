@@ -1,120 +1,61 @@
-import React, { useState, useEffect } from 'react';
-import competenciaService from '../services/competenciaService';
-import { FaPrint } from 'react-icons/fa';
-import logo from '../assets/logo.png'; // <--- IMPORTAR LOGO
+/* eslint-disable */
+import React from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { Clock, User, ArrowLeft, Printer } from 'lucide-react';
 
 const StartList = () => {
-  const [competencias, setCompetencias] = useState([]);
-  const [selectedComp, setSelectedComp] = useState('');
-  const [inscritos, setInscritos] = useState([]);
-
-  useEffect(() => {
-    const load = async () => {
-        try {
-            const res = await competenciaService.getCompetencias();
-            // Solo competencias activas (No finalizadas)
-            setCompetencias((res.data.results || res.data).filter(c => c.status !== 'Finalizada'));
-        } catch (err) { console.error(err); }
-    };
-    load();
-  }, []);
-
-  useEffect(() => {
-      if (!selectedComp) return;
-      const fetchInsc = async () => {
-          try {
-              const res = await competenciaService.getInscripciones();
-              // Filtrar inscripciones APROBADAS para esta competencia
-              const list = (res.data.results || res.data).filter(i => 
-                  i.competencia === parseInt(selectedComp) && i.estado === 'APROBADA'
-              );
-              setInscritos(list);
-          } catch (err) { console.error(err); }
-      };
-      fetchInsc();
-  }, [selectedComp]);
+  const navigate = useNavigate();
+  // Mock Data
+  const turnos = [
+    { hora: "08:00", atletas: ["Juan Pérez", "Ana Silva", "Mario Cruz", "Sofia L."] },
+    { hora: "09:00", atletas: ["Pedro M.", "Luisa K.", "Roberto B.", "Carla T."] },
+  ];
 
   return (
-    <div className="container fade-in">
-      <div className="d-flex justify-content-between align-items-center mb-4 no-print">
-          <h2 className="fw-bold text-dark">Planillas de Campo</h2>
-          <button className="btn btn-dark rounded-pill px-4 shadow-sm" onClick={()=>window.print()} disabled={!selectedComp}>
-              <FaPrint className="me-2"/> Imprimir Lista
+    <div className="min-h-screen bg-slate-50 p-6 md:p-10 font-sans">
+      <div className="max-w-4xl mx-auto space-y-8">
+        <div className="flex justify-between items-center">
+          <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors">
+            <ArrowLeft size={18} /> Volver
           </button>
+          <button className="flex items-center gap-2 text-blue-600 font-medium hover:bg-blue-50 px-4 py-2 rounded-xl transition-colors">
+            <Printer size={18} /> Imprimir Lista
+          </button>
+        </div>
+
+        <div className="text-center mb-10">
+          <h1 className="text-3xl font-bold text-slate-900">Lista de Salida</h1>
+          <p className="text-slate-500 mt-2">Turnos asignados para el Campeonato Apertura</p>
+        </div>
+
+        <div className="grid gap-6">
+          {turnos.map((turno, i) => (
+            <motion.div 
+              key={i}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: i * 0.1 }}
+              className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden"
+            >
+              <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex items-center gap-3">
+                <Clock className="text-blue-600" size={20} />
+                <h3 className="font-bold text-slate-800 text-lg">Turno {turno.hora} AM</h3>
+              </div>
+              <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                {turno.atletas.map((atleta, j) => (
+                  <div key={j} className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all">
+                    <div className="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center text-slate-500 font-bold text-sm">
+                      {j + 1}
+                    </div>
+                    <span className="text-slate-700 font-medium">{atleta}</span>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          ))}
+        </div>
       </div>
-
-      <div className="card-elegant p-4 mb-4 no-print">
-          <label className="fw-bold mb-2 text-primary">Seleccionar Competencia Activa:</label>
-          <select className="form-select" value={selectedComp} onChange={e=>setSelectedComp(e.target.value)}>
-              <option value="">-- Seleccione Evento --</option>
-              {competencias.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-      </div>
-
-      {selectedComp && (
-          <div className="bg-white p-5 shadow-sm printable-area">
-              {/* ENCABEZADO CON LOGO */}
-              <div className="d-flex align-items-center justify-content-center mb-5 border-bottom pb-4">
-                  <img src={logo} alt="Logo" style={{width: '80px', height: '80px', objectFit: 'contain'}} className="me-4"/>
-                  <div className="text-center">
-                      <h3 className="fw-bold m-0 text-dark">ASOCIACIÓN DEPORTIVA DE TIRO</h3>
-                      <h5 className="text-uppercase mt-2 text-primary letter-spacing-1">
-                          {competencias.find(c=>c.id === parseInt(selectedComp))?.name}
-                      </h5>
-                      <p className="text-muted small m-0">PLANILLA DE CONTROL DE JUECES Y ASISTENCIA</p>
-                  </div>
-              </div>
-
-              <table className="table table-bordered border-dark">
-                  <thead className="table-light text-center align-middle">
-                      <tr>
-                          <th style={{width: '40px'}}>#</th>
-                          <th>DEPORTISTA</th>
-                          <th>CLUB</th>
-                          <th>CATEGORÍAS / ARMAS</th>
-                          <th style={{width: '120px'}}>FIRMA</th>
-                          <th style={{width: '60px'}}>OK</th>
-                      </tr>
-                  </thead>
-                  <tbody>
-                      {inscritos.map((ins, idx) => (
-                          <tr key={ins.id}>
-                              <td className="text-center fw-bold align-middle">{idx + 1}</td>
-                              <td className="align-middle">
-                                  <span className="fw-bold d-block">{ins.deportista_nombre}</span>
-                                  <span className="text-uppercase">{ins.deportista_apellido}</span>
-                              </td>
-                              <td className="align-middle small">{ins.club_nombre}</td>
-                              <td className="small">
-                                  {ins.participaciones.map((p, i) => (
-                                      <div key={i} className="border-bottom py-1 last:border-0">
-                                          <strong>{p.modalidad_name}</strong> {p.categoria_name ? `- ${p.categoria_name}` : ''}
-                                          <br/>
-                                          <span className="text-muted fst-italic">{p.arma_info || '(Sin Arma)'}</span>
-                                      </div>
-                                  ))}
-                              </td>
-                              <td></td>
-                              <td></td>
-                          </tr>
-                      ))}
-                  </tbody>
-              </table>
-              
-              <div className="mt-5 pt-5 d-flex justify-content-around text-center">
-                  <div className="px-5">
-                      <div className="border-top border-dark pt-2 fw-bold" style={{width: '200px'}}>Juez Principal</div>
-                  </div>
-                  <div className="px-5">
-                      <div className="border-top border-dark pt-2 fw-bold" style={{width: '200px'}}>Director de Tiro</div>
-                  </div>
-              </div>
-              
-              <div className="text-center mt-5 pt-4 text-muted small opacity-50">
-                  Generado por Sistema ADTDCBBA - {new Date().toLocaleDateString()}
-              </div>
-          </div>
-      )}
     </div>
   );
 };

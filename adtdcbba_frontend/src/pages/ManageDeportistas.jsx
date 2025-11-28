@@ -1,185 +1,69 @@
-import React, { useState, useEffect } from 'react';
+/* eslint-disable */
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { motion } from 'framer-motion';
+import { Search, Plus, User, MapPin, ChevronRight, Hash } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import deportistaService from '../services/deportistaService';
-import { FaUserPlus, FaSearch, FaEye, FaUser, FaIdCard, FaFilter } from 'react-icons/fa';
+import api from '../config/api';
 
 const ManageDeportistas = () => {
-  const [deportistas, setDeportistas] = useState([]);
-  const [filteredDeportistas, setFilteredDeportistas] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data: deportistas = [], isLoading } = useQuery({
+    queryKey: ['deportistas'],
+    queryFn: async () => (await api.get('/deportistas/')).data
+  });
+
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('TODOS');
-
-  useEffect(() => {
-    const fetchDeportistas = async () => {
-      try {
-        // Asumimos que el servicio tiene un método para listar (ajusta si se llama diferente, ej: getDeportistas)
-        const res = await deportistaService.getDeportistas(); 
-        setDeportistas(res.data.results || res.data);
-      } catch (error) {
-        console.error("Error cargando deportistas:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDeportistas();
-  }, []);
-
-  useEffect(() => {
-    const filterData = () => {
-      let temp = deportistas;
-
-      // Filtro por Texto
-      if (searchTerm) {
-        const lowerTerm = searchTerm.toLowerCase();
-        temp = temp.filter(d => 
-          (d.first_name && d.first_name.toLowerCase().includes(lowerTerm)) ||
-          (d.apellido_paterno && d.apellido_paterno.toLowerCase().includes(lowerTerm)) ||
-          (d.ci && d.ci.includes(searchTerm))
-        );
-      }
-
-      // Filtro por Estado
-      if (filterStatus !== 'TODOS') {
-        temp = temp.filter(d => d.status === filterStatus);
-      }
-
-      setFilteredDeportistas(temp);
-    };
-
-    filterData();
-  }, [searchTerm, filterStatus, deportistas]);
-
-  // --- RENDERIZADO ---
-
-  if (loading) return (
-    <div className="d-flex justify-content-center align-items-center vh-100">
-        <div className="spinner-border text-primary" role="status" style={{width: '3rem', height: '3rem'}}></div>
-    </div>
-  );
+  const filtered = deportistas.filter(d => `${d.first_name} ${d.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()));
 
   return (
-    <div className="container-fluid py-4 fade-in">
-      
-      {/* HEADER */}
-      <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+    <div className="space-y-8 pb-10">
+      <div className="flex flex-col md:flex-row justify-between items-end gap-4">
         <div>
-            <h2 className="fw-bold text-primary mb-0">Directorio de Deportistas</h2>
-            <p className="text-muted small mb-0">Gestión del padrón oficial de tiradores.</p>
+          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Deportistas</h1>
+          <p className="text-slate-500 mt-1">Directorio oficial de atletas.</p>
         </div>
-        <Link to="/register-deportista" className="btn btn-primary rounded-pill px-4 py-2 shadow-sm hover-lift fw-bold d-flex align-items-center justify-content-center">
-            <FaUserPlus className="me-2"/> Registrar Nuevo
-        </Link>
+        <div className="flex gap-3 w-full md:w-auto">
+          <div className="relative flex-1 md:flex-none">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+            <input type="text" placeholder="Nombre o CI..." className="w-full md:w-64 pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 outline-none shadow-sm" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+          </div>
+          <Link to="/admin/deportistas/nuevo" className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-medium shadow-lg shadow-blue-600/30 flex items-center gap-2 transition-all active:scale-95 whitespace-nowrap">
+            <Plus size={20} /> Nuevo
+          </Link>
+        </div>
       </div>
 
-      {/* BARRA DE HERRAMIENTAS (BUSCADOR Y FILTROS) */}
-      <div className="card-modern border-0 shadow-sm p-3 mb-4 bg-white">
-        <div className="row g-3 align-items-center">
-            <div className="col-md-6">
-                <div className="input-group">
-                    <span className="input-group-text bg-light border-end-0"><FaSearch className="text-muted"/></span>
-                    <input 
-                        type="text" 
-                        className="form-control border-start-0 bg-light shadow-none" 
-                        placeholder="Buscar por Nombre, Apellido o CI..." 
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {isLoading ? <p className="col-span-4 text-center text-slate-400 py-20">Cargando...</p> : filtered.map((dep, i) => (
+          <motion.div key={dep.id} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.05 }} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group cursor-pointer relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-24 bg-gradient-to-r from-blue-50 to-indigo-50 z-0 opacity-50 group-hover:opacity-100 transition-opacity"></div>
+            <div className="relative z-10 flex flex-col items-center mt-4">
+              <div className="w-24 h-24 rounded-2xl bg-white p-1.5 shadow-lg mb-4 group-hover:scale-105 transition-transform duration-300">
+                <div className="w-full h-full bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 overflow-hidden border border-slate-100">
+                  {dep.foto ? <img src={dep.foto} alt="Foto" className="w-full h-full object-cover" /> : <User size={36} />}
                 </div>
-            </div>
-            <div className="col-md-4">
-                <div className="input-group">
-                    <span className="input-group-text bg-white border-end-0 fw-bold text-secondary"><FaFilter className="me-2"/> Estado:</span>
-                    <select 
-                        className="form-select border-start-0 shadow-none" 
-                        value={filterStatus} 
-                        onChange={(e) => setFilterStatus(e.target.value)}
-                    >
-                        <option value="TODOS">Todos</option>
-                        <option value="ACTIVO">Activos</option>
-                        <option value="PENDIENTE">Pendientes</option>
-                        <option value="SUSPENDIDO">Suspendidos</option>
-                    </select>
+              </div>
+              <h3 className="font-bold text-lg text-slate-900 text-center leading-tight">{dep.first_name} {dep.last_name}</h3>
+              <div className="mt-2 mb-6 flex flex-wrap justify-center gap-2">
+                <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-100">{dep.club_nombre || 'Sin Club'}</span>
+              </div>
+              <div className="w-full space-y-3">
+                <div className="flex items-center gap-3 p-2 rounded-lg bg-slate-50/50">
+                  <div className="p-1.5 bg-white rounded-md shadow-sm text-slate-400"><Hash size={14} /></div>
+                  <div><p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Cédula</p><p className="text-sm font-medium text-slate-700">{dep.ci || 'N/A'}</p></div>
                 </div>
+                <div className="flex items-center gap-3 p-2 rounded-lg bg-slate-50/50">
+                  <div className="p-1.5 bg-white rounded-md shadow-sm text-slate-400"><MapPin size={14} /></div>
+                  <div><p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Ciudad</p><p className="text-sm font-medium text-slate-700 truncate">{dep.ciudad || 'Cochabamba'}</p></div>
+                </div>
+              </div>
+              <Link to={`/admin/deportistas/${dep.id}`} className="w-full mt-6 py-3 rounded-xl bg-slate-900 text-white font-medium text-sm flex items-center justify-center gap-2 hover:bg-blue-600 shadow-lg shadow-slate-900/10 hover:shadow-blue-600/20 transition-all active:scale-95">
+                Ver Perfil <ChevronRight size={16} />
+              </Link>
             </div>
-            <div className="col-md-2 text-end text-muted small">
-                <strong>{filteredDeportistas.length}</strong> registros
-            </div>
-        </div>
+          </motion.div>
+        ))}
       </div>
-
-      {/* LISTADO (TABLA MODERNA) */}
-      <div className="card-modern border-0 shadow-sm overflow-hidden">
-        <div className="table-responsive">
-            <table className="table table-hover mb-0 align-middle">
-                <thead className="bg-light text-secondary text-uppercase small">
-                    <tr>
-                        <th className="ps-4 py-3 border-0">Deportista</th>
-                        <th className="py-3 border-0">Identificación</th>
-                        <th className="py-3 border-0">Club</th>
-                        <th className="py-3 border-0">Categoría</th>
-                        <th className="py-3 border-0 text-center">Estado</th>
-                        <th className="pe-4 py-3 border-0 text-end">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {filteredDeportistas.length > 0 ? (
-                        filteredDeportistas.map(d => (
-                            <tr key={d.id} className="transition-colors">
-                                <td className="ps-4">
-                                    <div className="d-flex align-items-center">
-                                        <div className="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center me-3 text-primary fw-bold overflow-hidden" style={{width: '40px', height: '40px'}}>
-                                            {d.foto ? <img src={d.foto} alt="" className="w-100 h-100 object-fit-cover"/> : (d.first_name?.[0] || <FaUser/>)}
-                                        </div>
-                                        <div>
-                                            <div className="fw-bold text-dark">{d.first_name} {d.apellido_paterno}</div>
-                                            <div className="small text-muted">{d.apellido_materno}</div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div className="d-flex align-items-center text-dark">
-                                        <FaIdCard className="text-muted me-2"/> {d.ci}
-                                    </div>
-                                </td>
-                                <td>
-                                    <span className="badge bg-light text-dark border border-light-subtle">{d.club_nombre || d.club?.name || 'Sin Club'}</span>
-                                </td>
-                                <td>
-                                    <span className={`badge rounded-pill ${d.tipo_modalidad === 'FUEGO' ? 'bg-danger bg-opacity-10 text-danger' : d.tipo_modalidad === 'AIRE' ? 'bg-info bg-opacity-10 text-info' : 'bg-primary bg-opacity-10 text-primary'}`}>
-                                        {d.tipo_modalidad || 'N/A'}
-                                    </span>
-                                </td>
-                                <td className="text-center">
-                                    <span className={`badge rounded-pill border ${
-                                        d.status === 'ACTIVO' ? 'bg-success-subtle text-success border-success-subtle' : 
-                                        d.status === 'PENDIENTE' ? 'bg-warning-subtle text-warning-emphasis border-warning-subtle' : 
-                                        'bg-danger-subtle text-danger border-danger-subtle'
-                                    }`}>
-                                        {d.status}
-                                    </span>
-                                </td>
-                                <td className="pe-4 text-end">
-                                    <Link to={`/deportistas/${d.id}`} className="btn btn-sm btn-light text-primary hover-scale shadow-sm rounded-circle p-2" title="Ver Perfil">
-                                        <FaEye size={16}/>
-                                    </Link>
-                                </td>
-                            </tr>
-                        ))
-                    ) : (
-                        <tr>
-                            <td colSpan="6" className="text-center py-5 text-muted">
-                                <div className="opacity-50 mb-2"><FaSearch size={30}/></div>
-                                <p className="mb-0">No se encontraron deportistas con ese criterio.</p>
-                            </td>
-                        </tr>
-                    )}
-                </tbody>
-            </table>
-        </div>
-      </div>
-
     </div>
   );
 };

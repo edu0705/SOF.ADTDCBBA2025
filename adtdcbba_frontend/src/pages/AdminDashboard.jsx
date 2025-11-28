@@ -1,126 +1,98 @@
+/* eslint-disable */
 import React from 'react';
+import { useCompetencias } from '../hooks/useCompetencias';
+import { motion } from 'framer-motion';
+import { 
+  Users, Trophy, Calendar, TrendingUp, 
+  ArrowRight, Activity, DollarSign, Plus 
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { FaTrophy, FaUsers, FaUserShield, FaCalendarAlt, FaPlus, FaArrowRight } from 'react-icons/fa';
 
-const AdminDashboard = () => {
-  const { user } = useAuth();
-
-  // Datos simulados para el diseño (luego puedes conectarlos a la API real)
-  const stats = [
-    { title: 'Competencias Activas', value: '3', icon: <FaTrophy />, color: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
-    { title: 'Inscripciones Pendientes', value: '12', icon: <FaCalendarAlt />, color: 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%)', text: '#d9534f' },
-    { title: 'Deportistas Registrados', value: '150+', icon: <FaUsers />, color: 'linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%)', text: '#2c3e50' },
-    { title: 'Clubes Afiliados', value: '8', icon: <FaUserShield />, color: 'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)' },
-  ];
+const StatCard = ({ title, value, icon: Icon, color, delay }) => {
+  const colors = {
+    blue: "bg-blue-500 text-blue-600",
+    green: "bg-emerald-500 text-emerald-600",
+    orange: "bg-orange-500 text-orange-600",
+    purple: "bg-purple-500 text-purple-600"
+  };
 
   return (
-    <div>
-      {/* Encabezado de Bienvenida */}
-      <div className="d-flex justify-content-between align-items-center mb-5 fade-in">
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: delay * 0.1 }}
+      className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden"
+    >
+      <div className="flex justify-between items-start relative z-10">
         <div>
-          <h2 className="fw-bold text-dark mb-1">Panel de Control</h2>
-          <p className="text-muted mb-0">Bienvenido de nuevo, {user?.username || 'Admin'}</p>
+          <p className="text-sm font-medium text-slate-500 mb-1">{title}</p>
+          <h3 className="text-3xl font-bold text-slate-800">{value}</h3>
         </div>
-        <div className="d-flex gap-3">
-            <Link to="/register-club" className="btn btn-light shadow-sm rounded-pill px-4 fw-bold text-primary">
-                <FaUserShield className="me-2"/> Nuevo Club
-            </Link>
-            <Link to="/admin/competencias/crear" className="btn btn-primary rounded-pill px-4 fw-bold shadow-sm">
-                <FaPlus className="me-2"/> Crear Competencia
-            </Link>
+        <div className={`p-3 rounded-xl bg-opacity-10 ${colors[color]}`}>
+          <Icon size={24} />
         </div>
       </div>
+    </motion.div>
+  );
+};
 
-      {/* Tarjetas de Estadísticas */}
-      <div className="row mb-5 fade-in">
-        {stats.map((stat, index) => (
-          <div key={index} className="col-md-3 mb-4">
-            <div className="card border-0 shadow-sm h-100 overflow-hidden" style={{ borderRadius: '20px' }}>
-              <div className="card-body p-4 position-relative">
-                <div className="d-flex justify-content-between align-items-start">
-                  <div>
-                    <p className="text-muted fw-bold text-uppercase small mb-2">{stat.title}</p>
-                    <h2 className="fw-bold mb-0" style={{ color: '#2c3e50' }}>{stat.value}</h2>
-                  </div>
-                  <div 
-                    className="d-flex align-items-center justify-content-center text-white shadow" 
-                    style={{ 
-                        width: '50px', height: '50px', borderRadius: '15px', 
-                        background: stat.color, fontSize: '1.2rem' 
-                    }}
-                  >
-                    {stat.icon}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
+const AdminDashboard = () => {
+  const { competencias, isLoading } = useCompetencias();
+
+  return (
+    <div className="space-y-8 pb-10">
+      <div className="flex justify-between items-end">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900">Panel de Control</h1>
+          <p className="text-slate-500">Resumen de actividad del club.</p>
+        </div>
+        <Link to="/admin/competencias/crear" className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-medium shadow-lg shadow-blue-600/20 flex items-center gap-2 transition-all">
+          <Plus size={20} /> Crear Competencia
+        </Link>
       </div>
 
-      {/* Sección de Contenido Dividido */}
-      <div className="row fade-in">
-        {/* Próximas Competencias */}
-        <div className="col-lg-8 mb-4">
-          <div className="card border-0 shadow-sm h-100" style={{ borderRadius: '20px' }}>
-            <div className="card-header bg-white border-0 py-4 px-4 d-flex justify-content-between align-items-center">
-                <h5 className="fw-bold m-0 text-dark">Próximas Competencias</h5>
-                <Link to="/admin/competencias" className="text-primary text-decoration-none small fw-bold">Ver todas <FaArrowRight/></Link>
-            </div>
-            <div className="card-body px-4 pb-4">
-                <div className="table-responsive">
-                    <table className="table table-hover align-middle table-borderless">
-                        <thead className="text-muted small text-uppercase">
-                            <tr>
-                                <th>Evento</th>
-                                <th>Fecha</th>
-                                <th>Estado</th>
-                                <th>Acción</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {/* Filas de Ejemplo (luego vendrán de la API) */}
-                            <tr className="border-bottom">
-                                <td className="fw-bold text-dark py-3">Copa Nacional 2025</td>
-                                <td className="text-muted">15 Nov, 2025</td>
-                                <td><span className="badge bg-success bg-opacity-10 text-success rounded-pill px-3">Activa</span></td>
-                                <td><Link to="/live-score" className="btn btn-sm btn-outline-primary rounded-pill">Ver Marcador</Link></td>
-                            </tr>
-                            <tr>
-                                <td className="fw-bold text-dark py-3">Tiro al Vuelo - Departamental</td>
-                                <td className="text-muted">22 Nov, 2025</td>
-                                <td><span className="badge bg-warning bg-opacity-10 text-warning rounded-pill px-3">Próxima</span></td>
-                                <td><button className="btn btn-sm btn-light rounded-pill text-muted">Editar</button></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard title="Total Inscritos" value="142" icon={Users} color="blue" delay={1} />
+        <StatCard title="Ingresos" value="Bs 12k" icon={DollarSign} color="green" delay={2} />
+        <StatCard title="Activas" value={competencias?.length || 0} icon={Activity} color="orange" delay={3} />
+        <StatCard title="Rendimiento" value="+24%" icon={TrendingUp} color="purple" delay={4} />
+      </div>
 
-        {/* Accesos Rápidos / Estado del Sistema */}
-        <div className="col-lg-4 mb-4">
-            <div className="card border-0 shadow-sm h-100 text-white" style={{ borderRadius: '20px', background: 'linear-gradient(180deg, #4e73df 0%, #224abe 100%)' }}>
-                <div className="card-body p-4 d-flex flex-column justify-content-center text-center">
-                    <div className="mb-4">
-                        <div className="bg-white bg-opacity-25 rounded-circle mx-auto d-flex align-items-center justify-content-center mb-3" style={{ width: '80px', height: '80px' }}>
-                            <FaCalendarAlt style={{ fontSize: '2rem' }} />
-                        </div>
-                        <h4 className="fw-bold">Gestión Rápida</h4>
-                        <p className="small text-white-50">Administra los registros pendientes</p>
-                    </div>
-                    <div className="d-grid gap-3">
-                        <Link to="/admin/inscripciones" className="btn btn-light fw-bold text-primary rounded-pill py-2">
-                            Revisar Inscripciones
-                        </Link>
-                        <Link to="/admin/jueces" className="btn btn-outline-light fw-bold rounded-pill py-2">
-                            Gestionar Jueces
-                        </Link>
-                    </div>
-                </div>
-            </div>
+      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-slate-50 flex justify-between items-center">
+          <h3 className="font-bold text-lg text-slate-800">Competencias Recientes</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-slate-50 text-xs uppercase text-slate-400 font-semibold">
+              <tr>
+                <th className="px-6 py-4 text-left">Nombre</th>
+                <th className="px-6 py-4 text-left">Fecha</th>
+                <th className="px-6 py-4 text-left">Estado</th>
+                <th className="px-6 py-4 text-right">Acción</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {isLoading ? (
+                <tr><td colSpan="4" className="p-8 text-center text-slate-400">Cargando...</td></tr>
+              ) : competencias.map((comp) => (
+                <tr key={comp.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-6 py-4 font-medium text-slate-700">{comp.name}</td>
+                  <td className="px-6 py-4 text-slate-500 text-sm">{new Date(comp.start_date).toLocaleDateString()}</td>
+                  <td className="px-6 py-4">
+                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100">
+                      {comp.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <Link to={`/admin/competencias/${comp.id}/stats`} className="text-blue-600 hover:underline text-sm font-medium">
+                      Ver Detalles
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

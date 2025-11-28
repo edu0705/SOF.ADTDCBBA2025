@@ -1,119 +1,84 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import competenciaService from '../services/competenciaService';
-import { FaCheckCircle, FaTimesCircle, FaClipboardList } from 'react-icons/fa';
+/* eslint-disable */
+import React from 'react';
+import { useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { motion } from 'framer-motion';
+import { Trophy, Users, Target, Activity, Printer, Download } from 'lucide-react';
+import api from '../config/api';
+
+const StatBox = ({ label, value, icon: Icon, color }) => (
+  <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+    <div>
+      <p className="text-slate-500 text-sm font-medium mb-1">{label}</p>
+      <p className="text-3xl font-bold text-slate-800">{value}</p>
+    </div>
+    <div className={`p-3 rounded-xl ${color} bg-opacity-10`}>
+      <Icon size={24} className={color.replace('bg-', 'text-')} />
+    </div>
+  </div>
+);
 
 const CompetitionStats = () => {
-  const [competencias, setCompetencias] = useState([]);
-  const [selectedComp, setSelectedComp] = useState('');
-  const [stats, setStats] = useState([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    const load = async () => {
-        const res = await competenciaService.getCompetencias();
-        setCompetencias((res.data.results || res.data).filter(c => c.status === 'Próxima'));
-    };
-    load();
-  }, []);
-
-  useEffect(() => {
-      if(!selectedComp) return;
-      const fetchStats = async () => {
-          setLoading(true);
-          try {
-              const res = await competenciaService.getCompetenciaStats(selectedComp);
-              setStats(res.data);
-          } catch(e) { console.error(e); }
-          finally { setLoading(false); }
-      };
-      fetchStats();
-  }, [selectedComp]);
-
-  const groupedStats = stats.reduce((acc, item) => {
-      if(!acc[item.modalidad]) acc[item.modalidad] = [];
-      acc[item.modalidad].push(item);
-      return acc;
-  }, {});
+  const { id } = useParams();
+  
+  // Mockup temporal, reemplazar con llamada real
+  const stats = {
+    inscritos: 45,
+    participaron: 42,
+    promedio: 88.5,
+    mejor_puntaje: 99
+  };
 
   return (
-    <div className="container fade-in">
-      <div className="d-flex justify-content-between align-items-center mb-4">
-          <div>
-            <h2 className="fw-bold text-dark">Estado de Categorías</h2>
-            <p className="text-muted">Verifica el quórum para la apertura de categorías.</p>
+    <div className="space-y-8">
+      <div className="flex justify-between items-end">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900">Estadísticas del Evento</h1>
+          <p className="text-slate-500 mt-1">Análisis de rendimiento y participación.</p>
+        </div>
+        <div className="flex gap-3">
+          <button className="px-4 py-2 bg-white border border-slate-200 text-slate-700 font-medium rounded-xl shadow-sm hover:bg-slate-50 flex items-center gap-2">
+            <Printer size={18} /> Imprimir Informe
+          </button>
+          <button className="px-4 py-2 bg-slate-900 text-white font-medium rounded-xl shadow-lg hover:bg-slate-800 flex items-center gap-2">
+            <Download size={18} /> Exportar Excel
+          </button>
+        </div>
+      </div>
+
+      {/* Grid KPI */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatBox label="Inscritos" value={stats.inscritos} icon={Users} color="bg-blue-500" />
+        <StatBox label="Asistencia" value={`${Math.round((stats.participaron/stats.inscritos)*100)}%`} icon={Activity} color="bg-emerald-500" />
+        <StatBox label="Promedio General" value={stats.promedio} icon={Target} color="bg-purple-500" />
+        <StatBox label="Mejor Puntaje" value={stats.mejor_puntaje} icon={Trophy} color="bg-amber-500" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
+          <h3 className="text-lg font-bold text-slate-800 mb-6">Participación por Club</h3>
+          <div className="flex items-center justify-center h-64 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400">
+            Gráfico Circular Aquí
           </div>
-          {selectedComp && (
-              <Link to={`/register-inscripcion?comp=${selectedComp}`} className="btn btn-primary rounded-pill px-4 shadow-sm fw-bold">
-                  <FaClipboardList className="me-2"/> Pre-Inscribirme Ahora
-              </Link>
-          )}
-      </div>
+        </motion.div>
 
-      <div className="card-elegant mb-4 p-4 bg-white">
-          <label className="fw-bold mb-2 text-primary">Seleccionar Competencia Próxima:</label>
-          <select className="form-select" value={selectedComp} onChange={e=>setSelectedComp(e.target.value)}>
-              <option value="">-- Seleccione Evento --</option>
-              {competencias.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-      </div>
-
-      {loading && <div className="text-center p-5">Cargando datos...</div>}
-
-      {selectedComp && !loading && (
-          <div className="row">
-              {Object.entries(groupedStats).map(([modName, categories]) => (
-                  <div key={modName} className="col-12 mb-4">
-                      <div className="card-elegant h-100">
-                          <div className="card-header-elegant bg-dark text-white">
-                              <h5 className="m-0">{modName}</h5>
-                          </div>
-                          <div className="card-body p-0">
-                              <div className="table-responsive">
-                                  <table className="table table-hover mb-0 align-middle">
-                                      <thead className="bg-light small text-muted">
-                                          <tr>
-                                              <th className="ps-4">Categoría</th>
-                                              <th className="text-center">Inscritos</th>
-                                              <th className="text-center">Estado</th>
-                                              <th>Lista de Atletas</th>
-                                          </tr>
-                                      </thead>
-                                      <tbody>
-                                          {categories.map((cat, idx) => (
-                                              <tr key={idx}>
-                                                  <td className="ps-4 fw-bold">{cat.categoria}</td>
-                                                  <td className="text-center fs-5">{cat.inscritos}</td>
-                                                  <td className="text-center">
-                                                      {cat.estado_categoria === 'ABIERTA' ? (
-                                                          <span className="badge bg-success"><FaCheckCircle className="me-1"/> ABIERTA</span>
-                                                      ) : (
-                                                          <span className="badge bg-danger bg-opacity-75">
-                                                              <FaTimesCircle className="me-1"/> CERRADA
-                                                              <span className="d-block small mt-1" style={{fontSize:'0.6rem'}}>Faltan {cat.faltantes}</span>
-                                                          </span>
-                                                      )}
-                                                  </td>
-                                                  <td className="small text-muted">
-                                                      {cat.lista.length > 0 ? (
-                                                          cat.lista.map((p, i) => (
-                                                              <span key={i} className={`badge border me-1 mb-1 ${p.estado==='APROBADA'?'bg-light text-success border-success':'bg-light text-secondary'}`}>
-                                                                  {p.nombre}
-                                                              </span>
-                                                          ))
-                                                      ) : <span>Sin inscritos</span>}
-                                                  </td>
-                                              </tr>
-                                          ))}
-                                      </tbody>
-                                  </table>
-                              </div>
-                          </div>
-                      </div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
+          <h3 className="text-lg font-bold text-slate-800 mb-6">Top 5 Atletas</h3>
+          <div className="space-y-4">
+            {[1, 2, 3, 4, 5].map((pos) => (
+              <div key={pos} className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-xl transition-colors">
+                <div className="flex items-center gap-4">
+                  <div className={`w-8 h-8 flex items-center justify-center rounded-full font-bold ${pos===1 ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-600'}`}>
+                    {pos}
                   </div>
-              ))}
+                  <span className="font-medium text-slate-700">Deportista {pos}</span>
+                </div>
+                <span className="font-mono font-bold text-slate-900">{100 - pos * 2} pts</span>
+              </div>
+            ))}
           </div>
-      )}
+        </motion.div>
+      </div>
     </div>
   );
 };

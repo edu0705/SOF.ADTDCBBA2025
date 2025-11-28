@@ -1,250 +1,112 @@
+/* eslint-disable */
 import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import competenciaService from '../services/competenciaService';
-import { useAuth } from '../context/AuthContext';
-import { 
-  FaTrophy, FaUser, FaSave, FaBullseye, FaRedo, FaListOl, FaMapMarkerAlt 
-} from 'react-icons/fa';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Target, Save, RotateCcw, CheckCircle, AlertTriangle, ChevronRight, User } from 'lucide-react';
 
 const JudgePanel = () => {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  
-  // Estados de Flujo
-  const [selectedCompetencia, setSelectedCompetencia] = useState('');
-  const [selectedInscripcion, setSelectedInscripcion] = useState(null);
-  
-  // Estado del Formulario Actual (Puntajes)
-  const [serieData, setSerieData] = useState({}); 
+  // Estado simulado (Debería venir de React Query / WebSocket)
+  const [competidor, setCompetidor] = useState({ id: 1, nombre: "Juan Pérez", dorsal: "104" });
+  const [serie, setSerie] = useState([0, 0, 0, 0, 0]);
+  const [ronda, setRonda] = useState(1);
 
-  // 1. Cargar Competencias Activas (En Progreso)
-  const { data: competencias = [], isLoading: loadingComp } = useQuery({
-    queryKey: ['competencias_juez'],
-    queryFn: async () => {
-      const res = await competenciaService.getCompetencias();
-      const all = res.data.results || res.data;
-      return all.filter(c => c.status === 'En Progreso');
-    }
-  });
-
-  // 2. Cargar Inscripciones de la competencia seleccionada
-  const { data: inscripciones = [], isLoading: loadingIns } = useQuery({
-    queryKey: ['inscripciones_comp', selectedCompetencia],
-    queryFn: async () => {
-      if (!selectedCompetencia) return [];
-      const res = await competenciaService.getInscripciones(selectedCompetencia);
-      return res.data.results || res.data;
-    },
-    enabled: !!selectedCompetencia
-  });
-
-  // 3. Mutación para Enviar Puntaje
-  const submitScoreMutation = useMutation({
-    mutationFn: async (payload) => {
-      return await competenciaService.submitScore(payload);
-    },
-    onSuccess: () => {
-      alert("✅ Puntaje registrado correctamente");
-      // Limpiar formulario para el siguiente deportista
-      setSelectedInscripcion(null);
-      setSerieData({});
-      queryClient.invalidateQueries(['resultados']);
-    },
-    onError: (err) => {
-      console.error("Error enviando puntaje:", err);
-      alert("❌ Error al enviar. Verifique los datos.");
-    }
-  });
-
-  // --- LÓGICA DE UI ---
-
-  const handleSelectDeportista = (inscripcion) => {
-    setSelectedInscripcion(inscripcion);
-    // Reiniciamos el formulario
-    setSerieData({});
+  const updateImpacto = (index, valor) => {
+    const newSerie = [...serie];
+    newSerie[index] = valor;
+    setSerie(newSerie);
   };
 
-  const handleScoreInput = (field, value) => {
-    setSerieData(prev => ({
-      ...prev,
-      [field]: parseFloat(value) || 0
-    }));
-  };
-
-  const handleSubmitFinal = () => {
-    if (!selectedInscripcion) return;
-    
-    // Construimos el payload esperado por el Backend
-    const payload = {
-      inscripcion: selectedInscripcion.id,
-      ronda_o_serie: "Final",
-      series: [serieData], // Enviamos la serie única dentro de un array
-      juez_que_registro: user.id 
-    };
-
-    if (window.confirm(`¿Confirmar puntaje de ${serieData.puntaje_total_ronda || 0} para ${selectedInscripcion.deportista_nombre}?`)) {
-        submitScoreMutation.mutate(payload);
-    }
-  };
-
-  // --- RENDERIZADO ---
+  const total = serie.reduce((a, b) => a + b, 0);
 
   return (
-    <div className="container-fluid py-3 fade-in" style={{ maxWidth: '800px' }}>
-      
-      {/* HEADER DEL JUEZ */}
-      <div className="d-flex align-items-center justify-content-between mb-4 bg-white p-3 rounded-4 shadow-sm border-bottom border-warning border-4">
-        <div className="d-flex align-items-center">
-            <div className="bg-warning bg-opacity-25 p-3 rounded-circle me-3 text-warning">
-                <FaTrophy size={24}/>
+    <div className="min-h-screen bg-slate-900 text-white font-sans p-4 pb-20">
+      {/* Header Juez */}
+      <header className="flex justify-between items-center mb-6 bg-slate-800/50 p-4 rounded-2xl backdrop-blur-md border border-white/10">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
+            <Target size={20} />
+          </div>
+          <div>
+            <h1 className="font-bold text-lg leading-none">Panel de Juez</h1>
+            <p className="text-xs text-slate-400">Puesto de Tiro #4</p>
+          </div>
+        </div>
+        <div className="px-3 py-1 bg-emerald-500/20 text-emerald-400 text-xs font-bold rounded-full border border-emerald-500/30 flex items-center gap-1">
+          <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"/> ONLINE
+        </div>
+      </header>
+
+      {/* Tarjeta del Tirador */}
+      <motion.div 
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-3xl border border-white/5 shadow-2xl mb-8"
+      >
+        <div className="flex justify-between items-start mb-6">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-slate-700 rounded-full flex items-center justify-center text-2xl font-bold">
+              {competidor.nombre.charAt(0)}
             </div>
             <div>
-                <h5 className="fw-bold m-0 text-dark">Panel de Juez</h5>
-                <small className="text-muted">Hola, {user.first_name || user.username}</small>
+              <h2 className="text-2xl font-bold">{competidor.nombre}</h2>
+              <p className="text-slate-400">Dorsal: <span className="text-white font-mono">{competidor.dorsal}</span></p>
             </div>
+          </div>
+          <div className="text-right">
+            <p className="text-sm text-slate-400 uppercase tracking-wider">Ronda</p>
+            <p className="text-3xl font-black text-blue-400">{ronda}<span className="text-base text-slate-500">/5</span></p>
+          </div>
         </div>
-        {selectedCompetencia && (
-            <button onClick={() => setSelectedCompetencia('')} className="btn btn-light text-muted btn-sm rounded-pill">
-                Cambiar Evento
-            </button>
-        )}
+
+        {/* Inputs de Impactos (Botones Grandes para Tocar) */}
+        <div className="grid grid-cols-5 gap-3 mb-6">
+          {serie.map((val, idx) => (
+            <div key={idx} className="space-y-2">
+              <label className="text-center block text-xs text-slate-500">Disp {idx + 1}</label>
+              <input 
+                type="number" 
+                inputMode="numeric"
+                min="0" max="10"
+                value={val}
+                onChange={(e) => updateImpacto(idx, parseInt(e.target.value) || 0)}
+                className="w-full aspect-square bg-slate-950 border-2 border-slate-700 rounded-xl text-center text-2xl font-bold focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none transition-all"
+              />
+            </div>
+          ))}
+        </div>
+
+        {/* Totalizador */}
+        <div className="flex justify-between items-center bg-slate-950/50 p-4 rounded-2xl border border-white/5">
+          <span className="text-slate-400 font-medium">Total Serie</span>
+          <span className="text-3xl font-mono font-bold text-emerald-400">{total} pts</span>
+        </div>
+      </motion.div>
+
+      {/* Acciones */}
+      <div className="grid grid-cols-2 gap-4">
+        <button 
+          onClick={() => setSerie([0,0,0,0,0])}
+          className="p-4 bg-slate-800 hover:bg-slate-700 rounded-2xl font-bold text-slate-300 flex items-center justify-center gap-2 transition-colors"
+        >
+          <RotateCcw size={20} /> Limpiar
+        </button>
+        <button 
+          className="p-4 bg-blue-600 hover:bg-blue-500 rounded-2xl font-bold text-white shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 transition-all active:scale-95"
+        >
+          <Save size={20} /> Enviar Ronda
+        </button>
       </div>
 
-      {/* PASO 1: SELECCIONAR COMPETENCIA */}
-      {!selectedCompetencia && (
-        <div className="animate-slide-up">
-            <h6 className="text-muted fw-bold mb-3 ps-2">EVENTOS ACTIVOS</h6>
-            {loadingComp ? <div className="text-center py-4"><div className="spinner-border text-warning"/></div> : (
-                <div className="row g-3">
-                    {competencias.length > 0 ? competencias.map(comp => (
-                        <div key={comp.id} className="col-12">
-                            <button 
-                                onClick={() => setSelectedCompetencia(comp.id)}
-                                className="btn btn-white w-100 text-start p-4 shadow-sm border-0 rounded-4 position-relative overflow-hidden hover-scale"
-                            >
-                                <div className="position-absolute top-0 start-0 h-100 w-2 bg-success"></div>
-                                <h5 className="fw-bold text-dark mb-1">{comp.name}</h5>
-                                <div className="d-flex justify-content-between align-items-center">
-                                    <small className="text-muted"><FaMapMarkerAlt className="me-1"/> {comp.poligono_nombre || 'Polígono Principal'}</small>
-                                    <span className="badge bg-success rounded-pill px-3">En Curso</span>
-                                </div>
-                            </button>
-                        </div>
-                    )) : (
-                        <div className="col-12">
-                            <div className="alert alert-info text-center rounded-4 shadow-sm border-0">
-                                No hay competencias en curso asignadas a ti en este momento.
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
+      {/* Lista de Espera */}
+      <div className="mt-10">
+        <h3 className="text-sm font-bold text-slate-500 uppercase mb-4 tracking-wider">Siguiente en línea</h3>
+        <div className="bg-slate-800/30 p-4 rounded-xl border border-white/5 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <User size={18} className="text-slate-400" />
+            <span className="text-slate-300">Ana Torrez (Dorsal 105)</span>
+          </div>
+          <ChevronRight size={18} className="text-slate-600" />
         </div>
-      )}
-
-      {/* PASO 2: SELECCIONAR DEPORTISTA */}
-      {selectedCompetencia && !selectedInscripcion && (
-        <div className="animate-slide-up">
-            <div className="d-flex justify-content-between align-items-center mb-3">
-                <h6 className="text-muted fw-bold m-0 ps-2">TIRADORES DISPONIBLES</h6>
-                <span className="badge bg-primary rounded-pill">{inscripciones.length} Inscritos</span>
-            </div>
-            
-            {loadingIns ? <div className="text-center py-4"><div className="spinner-border text-primary"/></div> : (
-                <div className="list-group shadow-sm rounded-4 border-0 overflow-hidden">
-                    {inscripciones.map(ins => (
-                        <button 
-                            key={ins.id} 
-                            onClick={() => handleSelectDeportista(ins)}
-                            className="list-group-item list-group-item-action p-4 border-0 border-bottom d-flex align-items-center justify-content-between hover-bg-light"
-                        >
-                            <div className="d-flex align-items-center">
-                                <div className="bg-light rounded-circle p-3 me-3 text-secondary">
-                                    <FaUser size={20}/>
-                                </div>
-                                <div>
-                                    <h6 className="fw-bold m-0 text-dark">{ins.deportista_nombre}</h6>
-                                    <small className="text-muted">{ins.club_nombre}</small>
-                                </div>
-                            </div>
-                            <FaBullseye className="text-danger opacity-50" size={24}/>
-                        </button>
-                    ))}
-                    {inscripciones.length === 0 && (
-                        <div className="p-4 text-center text-muted">No hay deportistas inscritos aún.</div>
-                    )}
-                </div>
-            )}
-        </div>
-      )}
-
-      {/* PASO 3: INGRESO DE PUNTAJES (INTERFAZ TÁCTIL) */}
-      {selectedInscripcion && (
-        <div className="animate-slide-up">
-            {/* Cabecera del Deportista */}
-            <div className="card-modern bg-dark text-white p-4 mb-4 border-0 text-center position-relative overflow-hidden shadow-lg">
-                <div className="position-absolute top-0 end-0 p-3 opacity-10"><FaUser size={100}/></div>
-                <h3 className="fw-bold mb-1 text-warning">{selectedInscripcion.deportista_nombre}</h3>
-                <p className="mb-0 opacity-75">{selectedInscripcion.club_nombre}</p>
-                <button 
-                    onClick={() => setSelectedInscripcion(null)} 
-                    className="btn btn-sm btn-outline-light rounded-pill position-absolute top-0 start-0 m-3 hover-scale"
-                >
-                    <FaRedo className="me-1"/> Cambiar
-                </button>
-            </div>
-
-            {/* Formulario Grande */}
-            <div className="card-modern p-4 border-0 shadow-lg bg-white">
-                <h5 className="fw-bold text-center mb-4 text-primary d-flex align-items-center justify-content-center">
-                    <FaListOl className="me-2"/> Registro de Impactos
-                </h5>
-
-                {/* Input Gigante para Puntaje Total */}
-                <div className="mb-4">
-                    <label className="form-label text-center w-100 text-muted small fw-bold text-uppercase">Puntaje Total</label>
-                    <input 
-                        type="number" 
-                        inputMode="decimal" 
-                        className="form-control form-control-lg text-center fw-bold text-dark border-2 border-primary bg-light rounded-3" 
-                        style={{fontSize: '3.5rem', height: '120px'}}
-                        placeholder="0.0"
-                        value={serieData.puntaje_total_ronda || ''}
-                        onChange={(e) => handleScoreInput('puntaje_total_ronda', e.target.value)}
-                        autoFocus
-                    />
-                </div>
-
-                {/* Contador de X (Switch Grande) */}
-                <div className="d-flex justify-content-center gap-3 mb-5 p-3 bg-light rounded-4 border">
-                    <div className="form-check form-switch custom-switch-lg d-flex align-items-center gap-3">
-                        <input 
-                            className="form-check-input" 
-                            type="checkbox" 
-                            id="esX" 
-                            style={{width: '60px', height: '30px', cursor: 'pointer'}}
-                            checked={serieData.es_x || false}
-                            onChange={(e) => setSerieData({...serieData, es_x: e.target.checked})}
-                        />
-                        <label className="form-check-label fw-bold pt-1 cursor-pointer select-none" htmlFor="esX" style={{fontSize: '1.1rem'}}>Es Centro (X)</label>
-                    </div>
-                </div>
-
-                <button 
-                    onClick={handleSubmitFinal}
-                    disabled={submitScoreMutation.isLoading || !serieData.puntaje_total_ronda}
-                    className="btn btn-success w-100 py-3 rounded-4 shadow-lg fw-bold fs-4 hover-lift d-flex align-items-center justify-content-center transition-all"
-                >
-                    {submitScoreMutation.isLoading ? (
-                        <div className="spinner-border text-white"/>
-                    ) : (
-                        <><FaSave className="me-3"/> ENVIAR RESULTADO</>
-                    )}
-                </button>
-            </div>
-        </div>
-      )}
-
+      </div>
     </div>
   );
 };

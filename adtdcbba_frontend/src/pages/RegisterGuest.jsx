@@ -32,7 +32,7 @@ const RegisterGuest = () => {
           alert(`✅ INVITADO REGISTRADO\n\nUsuario: ${authRes.data.username}\nContraseña: ${authRes.data.password}`);
           navigate('/admin/deportistas');
       } catch (err) {
-          alert("Error al registrar. Revise el CI.");
+          alert("Error al registrar. Revise el CI.", err);
       } finally { setLoading(false); }
   };
 

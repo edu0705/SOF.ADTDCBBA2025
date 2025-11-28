@@ -1,58 +1,79 @@
 from django.contrib import admin
-from django.http import HttpResponse
-from django.utils.html import format_html
 from .models import Deportista, Arma, DocumentoDeportista, PrestamoArma
-# Importamos el generador de reportes (Asegúrate de haber creado competencias/reports.py)
-from competencias.reports import generar_credencial_pdf
+
+# --- INLINES ---
+# Esto permite ver y editar Armas y Documentos dentro de la pantalla del Deportista
+class ArmaInline(admin.TabularInline):
+    model = Arma
+    extra = 0
+    fields = ('tipo', 'marca', 'modelo', 'calibre', 'serie', 'matricula')
 
 class DocumentoInline(admin.TabularInline):
     model = DocumentoDeportista
     extra = 0
+    readonly_fields = ('uploaded_at',)
 
+# --- ADMIN PRINCIPAL ---
 @admin.register(Deportista)
 class DeportistaAdmin(admin.ModelAdmin):
-    # Campos visibles en la lista (incluyendo los nuevos de lógica de negocio)
-    list_display = ('nombre_completo', 'ci', 'club', 'status', 'tipo_modalidad', 'vencimiento_credencial')
+    # SOLUCIÓN DEL ERROR: Usamos los campos reales en lugar de 'last_name'
+    list_display = (
+        'codigo_unico',
+        'apellido_paterno', 
+        'apellido_materno', 
+        'first_name', 
+        'club', 
+        'tipo_modalidad', 
+        'status',
+        'get_edad_display' # Usamos un método wrapper para mostrar la edad
+    )
     
-    # Buscador potente
+    list_filter = ('status', 'tipo_modalidad', 'club', 'es_invitado', 'departamento_origen')
+    
     search_fields = ('first_name', 'apellido_paterno', 'apellido_materno', 'ci', 'codigo_unico')
     
-    # Filtros laterales
-    list_filter = ('club', 'status', 'es_invitado', 'tipo_modalidad')
+    # Organiza el formulario en pestañas o secciones para que sea más ordenado
+    fieldsets = (
+        ('Información Personal', {
+            'fields': (
+                ('first_name', 'apellido_paterno', 'apellido_materno'),
+                ('ci', 'fecha_nacimiento'),
+                ('email_user_link', 'foto'), # Campo calculado opcional
+            )
+        }),
+        ('Afiliación y Club', {
+            'fields': ('club', 'codigo_unico', 'status', 'es_invitado', 'departamento_origen')
+        }),
+        ('Gestión Deportiva', {
+            'fields': ('tipo_modalidad', 'vencimiento_credencial', 'archivo_responsabilidad')
+        }),
+        ('Suspensiones', {
+            'classes': ('collapse',), # Esto hace que la sección inicie colapsada
+            'fields': ('motivo_suspension', 'fecha_suspension', 'suspension_indefinida', 'fin_suspension')
+        }),
+    )
+
+    inlines = [DocumentoInline, ArmaInline]
     
-    inlines = [DocumentoInline]
-    actions = ['imprimir_credencial']
+    # Método para mostrar la edad en la lista (wrapper del modelo)
+    @admin.display(description='Edad', ordering='fecha_nacimiento')
+    def get_edad_display(self, obj):
+        return obj.get_edad()
 
-    def nombre_completo(self, obj):
-        return f"{obj.first_name} {obj.apellido_paterno}"
-    nombre_completo.short_description = "Nombre Completo"
+    # Opcional: Para mostrar el link al usuario de Django asociado
+    @admin.display(description='Usuario Sistema')
+    def email_user_link(self, obj):
+        return obj.user.email if obj.user else "-"
 
-    @admin.action(description='🪪 Imprimir Credencial PDF')
-    def imprimir_credencial(self, request, queryset):
-        """
-        Genera un PDF con la credencial del deportista seleccionado.
-        """
-        if queryset.count() == 1:
-            deportista = queryset.first()
-            response = HttpResponse(content_type='application/pdf')
-            # Nombre del archivo para descargar
-            filename = f"Credencial_{deportista.ci}.pdf"
-            response['Content-Disposition'] = f'attachment; filename="{filename}"'
-            
-            # Llamamos al motor de reportes
-            generar_credencial_pdf(response, deportista)
-            return response
-        else:
-            self.message_user(request, "Por favor, seleccione solo un deportista a la vez para imprimir su credencial.", level='warning')
+# --- OTROS REGISTROS ---
 
 @admin.register(Arma)
 class ArmaAdmin(admin.ModelAdmin):
     list_display = ('marca', 'modelo', 'calibre', 'serie', 'deportista', 'tipo')
-    search_fields = ('serie', 'matricula', 'marca', 'deportista__first_name', 'deportista__apellido_paterno')
+    search_fields = ('serie', 'marca', 'deportista__apellido_paterno', 'deportista__ci')
     list_filter = ('tipo', 'es_aire_comprimido')
-    autocomplete_fields = ['deportista'] 
-
 @admin.register(PrestamoArma)
 class PrestamoArmaAdmin(admin.ModelAdmin):
-    list_display = ('arma', 'deportista_propietario', 'deportista_receptor', 'competencia', 'fecha_prestamo')
-    autocomplete_fields = ['arma', 'deportista_propietario', 'deportista_receptor', 'competencia']
+    list_display = ('arma', 'competencia', 'deportista_propietario', 'deportista_receptor', 'fecha_prestamo')
+    list_filter = ('fecha_prestamo', 'competencia')
+    search_fields = ('arma__serie', 'deportista_receptor__apellido_paterno')

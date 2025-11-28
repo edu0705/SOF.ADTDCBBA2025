@@ -1,0 +1,28 @@
+# Git
+.git
+.gitignore
+
+# Python / Django
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env
+venv
+venv_django/
+.env
+
+# Node / Frontend
+node_modules
+npm-debug.log
+yarn-error.log
+.idea
+.vscode
+dist
+build
+coverage
+
+# Docker
+docker-compose.yml
+Dockerfile

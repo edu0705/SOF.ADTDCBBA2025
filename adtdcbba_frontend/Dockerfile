@@ -1,34 +1,27 @@
-# --- ETAPA 1: Construcción (Node.js) ---
+# --- ETAPA 1: Construcción (Build) ---
 FROM node:20-alpine as build
 
 WORKDIR /app
 
 # Copiamos package.json e instalamos dependencias
-COPY package.json package-lock.json ./
-RUN npm ci --silent
+COPY package*.json ./
+RUN npm install
 
 # Copiamos el código fuente
-COPY . ./
+COPY . .
 
-# Argumentos de construcción (Para que Vite sepa la URL del backend)
-# En Docker interno, Nginx manejará el proxy, así que la API es relativa
-ENV VITE_API_URL=/api
-ENV VITE_WS_URL=/ws
-
-# Compilamos la aplicación (genera carpeta /dist)
+# Construimos la aplicación para producción
 RUN npm run build
 
-# --- ETAPA 2: Servidor Producción (Nginx) ---
+# --- ETAPA 2: Servidor de Producción (Nginx) ---
 FROM nginx:alpine
 
-# Copiamos los archivos compilados de la etapa anterior
+# Copiamos los archivos construidos desde la etapa anterior a la carpeta de Nginx
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Copiamos nuestra configuración personalizada de Nginx
+# Copiamos nuestra configuración personalizada de Nginx (La crearemos en el siguiente paso)
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Exponemos el puerto 80
 EXPOSE 80
 
-# Arrancamos Nginx
 CMD ["nginx", "-g", "daemon off;"]

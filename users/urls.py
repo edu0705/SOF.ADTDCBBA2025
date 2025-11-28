@@ -4,18 +4,19 @@ from .views import (
     CookieTokenRefreshView, 
     LogoutView, 
     UserInfoView,
-    UserNotificationsView  # <--- Asegúrate de importar esto
+    UserNotificationsView,
+    GetCSRFToken # <--- IMPORTANTE: Asegúrate de que esto exista en views.py
 )
 
 urlpatterns = [
-    # Auth Endpoints (Tokens en Cookies)
-    path('token/', CookieTokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('token/refresh/', CookieTokenRefreshView.as_view(), name='token_refresh'),
-    path('token/logout/', LogoutView.as_view(), name='token_logout'),
+    # --- AUTENTICACIÓN Y SEGURIDAD ---
+    # Rutas finales: /api/auth/login/, /api/auth/refresh/, etc.
+    path('login/', CookieTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('refresh/', CookieTokenRefreshView.as_view(), name='token_refresh'),
+    path('logout/', LogoutView.as_view(), name='token_logout'),
+    path('csrf/', GetCSRFToken.as_view(), name='get_csrf_token'), # <--- ¡LA RUTA QUE FALTABA!
     
-    # Datos del Usuario
-    path('user-info/', UserInfoView.as_view(), name='user_info'),
-    
-    # Notificaciones (Mock para evitar error 404)
+    # --- DATOS DE USUARIO ---
+    path('me/', UserInfoView.as_view(), name='user_info'),
     path('notifications/', UserNotificationsView.as_view(), name='user_notifications'),
 ]
